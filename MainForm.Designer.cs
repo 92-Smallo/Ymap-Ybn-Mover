@@ -169,6 +169,7 @@
             calculateVectorDifferenceToolStripMenuItem.Name = "calculateVectorDifferenceToolStripMenuItem";
             calculateVectorDifferenceToolStripMenuItem.Size = new Size(215, 22);
             calculateVectorDifferenceToolStripMenuItem.Text = "Calculate Vector Difference";
+            calculateVectorDifferenceToolStripMenuItem.Click += CalculateVectorDifferenceToolStripMenuItem_Click;
             // 
             // helpToolStripMenuItem
             // 
@@ -180,19 +181,19 @@
             // checkForUpdateToolStripMenuItem
             // 
             checkForUpdateToolStripMenuItem.Name = "checkForUpdateToolStripMenuItem";
-            checkForUpdateToolStripMenuItem.Size = new Size(180, 22);
+            checkForUpdateToolStripMenuItem.Size = new Size(165, 22);
             checkForUpdateToolStripMenuItem.Text = "Check for Update";
             checkForUpdateToolStripMenuItem.Click += CheckForUpdateToolStripMenuItem_Click;
             // 
             // toolStripSeparator2
             // 
             toolStripSeparator2.Name = "toolStripSeparator2";
-            toolStripSeparator2.Size = new Size(177, 6);
+            toolStripSeparator2.Size = new Size(162, 6);
             // 
             // aboutToolStripMenuItem
             // 
             aboutToolStripMenuItem.Name = "aboutToolStripMenuItem";
-            aboutToolStripMenuItem.Size = new Size(180, 22);
+            aboutToolStripMenuItem.Size = new Size(165, 22);
             aboutToolStripMenuItem.Text = "About";
             // 
             // mainStatusStrip
@@ -300,7 +301,7 @@
             // stopButton
             // 
             stopButton.Enabled = false;
-            stopButton.Location = new Point(236, 469);
+            stopButton.Location = new Point(236, 470);
             stopButton.Name = "stopButton";
             stopButton.Size = new Size(106, 23);
             stopButton.TabIndex = 19;
@@ -311,8 +312,8 @@
             // 
             zMoveNumeric.DecimalPlaces = 4;
             zMoveNumeric.Location = new Point(884, 470);
-            zMoveNumeric.Maximum = new decimal(new int[] { 50000, 0, 0, 0 });
-            zMoveNumeric.Minimum = new decimal(new int[] { 50000, 0, 0, int.MinValue });
+            zMoveNumeric.Maximum = new decimal(new int[] { 500000, 0, 0, 0 });
+            zMoveNumeric.Minimum = new decimal(new int[] { 500000, 0, 0, int.MinValue });
             zMoveNumeric.Name = "zMoveNumeric";
             zMoveNumeric.Size = new Size(120, 23);
             zMoveNumeric.TabIndex = 20;
@@ -321,8 +322,8 @@
             // 
             yMoveNumeric.DecimalPlaces = 4;
             yMoveNumeric.Location = new Point(738, 470);
-            yMoveNumeric.Maximum = new decimal(new int[] { 50000, 0, 0, 0 });
-            yMoveNumeric.Minimum = new decimal(new int[] { 50000, 0, 0, int.MinValue });
+            yMoveNumeric.Maximum = new decimal(new int[] { 500000, 0, 0, 0 });
+            yMoveNumeric.Minimum = new decimal(new int[] { 500000, 0, 0, int.MinValue });
             yMoveNumeric.Name = "yMoveNumeric";
             yMoveNumeric.Size = new Size(120, 23);
             yMoveNumeric.TabIndex = 22;
@@ -341,8 +342,8 @@
             // 
             xMoveNumeric.DecimalPlaces = 4;
             xMoveNumeric.Location = new Point(592, 470);
-            xMoveNumeric.Maximum = new decimal(new int[] { 50000, 0, 0, 0 });
-            xMoveNumeric.Minimum = new decimal(new int[] { 50000, 0, 0, int.MinValue });
+            xMoveNumeric.Maximum = new decimal(new int[] { 500000, 0, 0, 0 });
+            xMoveNumeric.Minimum = new decimal(new int[] { 500000, 0, 0, int.MinValue });
             xMoveNumeric.Name = "xMoveNumeric";
             xMoveNumeric.Size = new Size(120, 23);
             xMoveNumeric.TabIndex = 24;
@@ -353,9 +354,9 @@
             xMoveLabel.Font = new Font("Segoe UI Variable Display Semib", 12F, FontStyle.Bold, GraphicsUnit.Point);
             xMoveLabel.Location = new Point(478, 470);
             xMoveLabel.Name = "xMoveLabel";
-            xMoveLabel.Size = new Size(117, 21);
+            xMoveLabel.Size = new Size(118, 21);
             xMoveLabel.TabIndex = 23;
-            xMoveLabel.Text = "Move Offset Z:";
+            xMoveLabel.Text = "Move Offset X:";
             // 
             // openFileDialog1
             // 

@@ -14,6 +14,23 @@ namespace Internal_Functions
         {
             return new Vector3((extentMin.X + extentMax.X) / 2, (extentMin.Y + extentMax.Y) / 2, (extentMin.Z + extentMax.Z) / 2);
         }
+
+        public static Vector3 GetCentreFromList(List<Vector3> vectors)
+        {
+            if (vectors.Count == 0)
+            {
+                throw new ArgumentException("The list of vectors is empty.");
+            }
+
+            Vector3 sum = Vector3.Zero;
+
+            foreach (Vector3 vector in vectors)
+            {
+                sum += vector;
+            }
+
+            return sum / vectors.Count;
+        }
     }
 
     public class StringFunctions

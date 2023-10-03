@@ -5,6 +5,8 @@ using Vector3 = SharpDX.Vector3;
 using Vector4 = SharpDX.Vector4;
 using Newtonsoft.Json.Linq;
 using System.Diagnostics;
+using System.Security.Policy;
+using System.Xml.Linq;
 
 namespace Ymap_Ybn_Mover
 {
@@ -13,6 +15,29 @@ namespace Ymap_Ybn_Mover
         public DateTime timerTime = DateTime.Now;
         public IDictionary<string, string> fileTypes = new Dictionary<string, string>() { { "YMAP Files", ".ymap" }, { "YBN Files", ".ybn" } };
         public bool interrupt = false;
+
+        public ListView.SelectedListViewItemCollection SelectedMaps
+        {
+            get { return mainList.SelectedItems; }
+        }
+
+        public decimal XMove
+        {
+            get { return xMoveNumeric.Value; }
+            set { xMoveNumeric.Value = value; }
+        }
+
+        public decimal YMove
+        {
+            get { return yMoveNumeric.Value; }
+            set { yMoveNumeric.Value = value; }
+        }
+
+        public decimal ZMove
+        {
+            get { return zMoveNumeric.Value; }
+            set { zMoveNumeric.Value = value; }
+        }
 
         public MainForm()
         {
@@ -42,12 +67,12 @@ namespace Ymap_Ybn_Mover
                     string responseBody = response.Content.ReadAsStringAsync().Result;
                     dynamic release = JObject.Parse(responseBody);
                     string latestVersion = release.tag_name;
-                    string localVersion = "1.0.0";
+                    string localVersion = "1.0.1";
 
                     if (latestVersion != localVersion)
                     {
                         DialogResult result = MessageBox.Show(
-                            $"A newer version ({latestVersion}) is available. Do you want to download it?",
+                            $"A newer version ({latestVersion}) is available. Do you want to download it?\n\nChanges:\n{release.body}",
                             "Update Available",
                             MessageBoxButtons.YesNo,
                             MessageBoxIcon.Information);
@@ -57,7 +82,8 @@ namespace Ymap_Ybn_Mover
                             string url = release.assets[0].browser_download_url;
                             Process.Start("explorer.exe", url);
                         }
-                    } else
+                    }
+                    else
                     {
                         if (manualCheck)
                             MessageBox.Show("You have the latest version.", "Up to Date", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -104,14 +130,19 @@ namespace Ymap_Ybn_Mover
         private void ExitToolStripMenuItem_Click(object sender, EventArgs e)
         {
             Close();
-            System.Windows.Forms.Application.Exit();
-            System.Windows.Forms.Application.ExitThread();
+            Application.Exit();
+            Application.ExitThread();
         }
 
         private void AddFilesToolStripMenuItem_Click_1(object sender, EventArgs e)
         {
             if (openFileDialog1.ShowDialog(this) == DialogResult.OK)
                 AddFiles(openFileDialog1.FileNames);
+        }
+        private void CalculateVectorDifferenceToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            CalcVect calculateVectorForm = new(this);
+            calculateVectorForm.ShowDialog();
         }
 
         private void AddFolderToolStripMenuItem_Click(object sender, EventArgs e)
