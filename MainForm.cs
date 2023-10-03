@@ -26,7 +26,7 @@ namespace Ymap_Ybn_Mover
             CheckForUpdate();
         }
 
-        private static void CheckForUpdate()
+        private static void CheckForUpdate(bool manualCheck = false)
         {
             string repoUrl = "https://api.github.com/repos/92-Smallo/Ymap-Ybn-Mover/releases/latest";
 
@@ -42,7 +42,7 @@ namespace Ymap_Ybn_Mover
                     string responseBody = response.Content.ReadAsStringAsync().Result;
                     dynamic release = JObject.Parse(responseBody);
                     string latestVersion = release.tag_name;
-                    string localVersion = "1.0.2";
+                    string localVersion = "1.0.0";
 
                     if (latestVersion != localVersion)
                     {
@@ -57,6 +57,10 @@ namespace Ymap_Ybn_Mover
                             string url = release.assets[0].browser_download_url;
                             Process.Start("explorer.exe", url);
                         }
+                    } else
+                    {
+                        if (manualCheck)
+                            MessageBox.Show("You have the latest version.", "Up to Date", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                 }
                 catch (Exception ex)
@@ -325,6 +329,6 @@ namespace Ymap_Ybn_Mover
         private void OpenFileDialog1_FileOk(object sender, EventArgs e) => AddFiles(mainFileDialog.FileNames);
         private void ClearAllYMAPsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".ymap");
         private void ClearAllYBNsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".ybn");
-        private void CheckForUpdateToolStripMenuItem_Click(object sender, EventArgs e) => CheckForUpdate();
+        private void CheckForUpdateToolStripMenuItem_Click(object sender, EventArgs e) => CheckForUpdate(true);
     }
 }
