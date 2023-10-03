@@ -1,6 +1,6 @@
 ﻿namespace Ymap_Ybn_Mover
 {
-    partial class mainForm
+    partial class MainForm
     {
         /// <summary>
         ///  Required designer variable.
@@ -31,7 +31,7 @@
             ListViewGroup listViewGroup1 = new ListViewGroup("YMAP Files", HorizontalAlignment.Left);
             ListViewGroup listViewGroup2 = new ListViewGroup("YBN Files", HorizontalAlignment.Left);
             ListViewGroup listViewGroup3 = new ListViewGroup("RPF Files", HorizontalAlignment.Left);
-            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(mainForm));
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             mainMenuStrip = new MenuStrip();
             fileToolStripMenuItem = new ToolStripMenuItem();
             addFilesToolStripMenuItem = new ToolStripMenuItem();
@@ -46,8 +46,6 @@
             clearAllYBNsToolStripMenuItem = new ToolStripMenuItem();
             toolStripSeparator4 = new ToolStripSeparator();
             calculateVectorDifferenceToolStripMenuItem = new ToolStripMenuItem();
-            toolStripSeparator5 = new ToolStripSeparator();
-            backupFilesToolStripMenuItem = new ToolStripMenuItem();
             helpToolStripMenuItem = new ToolStripMenuItem();
             checkForUpdateToolStripMenuItem = new ToolStripMenuItem();
             toolStripSeparator2 = new ToolStripSeparator();
@@ -123,7 +121,7 @@
             // 
             // editToolStripMenuItem
             // 
-            editToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { clearFilesToolStripMenuItem, clearSelectedFilesToolStripMenuItem, toolStripSeparator3, clearAllYMAPsToolStripMenuItem, clearAllYBNsToolStripMenuItem, toolStripSeparator4, calculateVectorDifferenceToolStripMenuItem, toolStripSeparator5, backupFilesToolStripMenuItem });
+            editToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { clearFilesToolStripMenuItem, clearSelectedFilesToolStripMenuItem, toolStripSeparator3, clearAllYMAPsToolStripMenuItem, clearAllYBNsToolStripMenuItem, toolStripSeparator4, calculateVectorDifferenceToolStripMenuItem });
             editToolStripMenuItem.Name = "editToolStripMenuItem";
             editToolStripMenuItem.Size = new Size(39, 20);
             editToolStripMenuItem.Text = "Edit";
@@ -159,7 +157,7 @@
             clearAllYBNsToolStripMenuItem.Name = "clearAllYBNsToolStripMenuItem";
             clearAllYBNsToolStripMenuItem.Size = new Size(215, 22);
             clearAllYBNsToolStripMenuItem.Text = "Clear all YBNs";
-            clearAllYBNsToolStripMenuItem.Click += clearAllYBNsToolStripMenuItem_Click;
+            clearAllYBNsToolStripMenuItem.Click += ClearAllYBNsToolStripMenuItem_Click;
             // 
             // toolStripSeparator4
             // 
@@ -172,17 +170,6 @@
             calculateVectorDifferenceToolStripMenuItem.Size = new Size(215, 22);
             calculateVectorDifferenceToolStripMenuItem.Text = "Calculate Vector Difference";
             // 
-            // toolStripSeparator5
-            // 
-            toolStripSeparator5.Name = "toolStripSeparator5";
-            toolStripSeparator5.Size = new Size(212, 6);
-            // 
-            // backupFilesToolStripMenuItem
-            // 
-            backupFilesToolStripMenuItem.Name = "backupFilesToolStripMenuItem";
-            backupFilesToolStripMenuItem.Size = new Size(215, 22);
-            backupFilesToolStripMenuItem.Text = "Backup Files?";
-            // 
             // helpToolStripMenuItem
             // 
             helpToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { checkForUpdateToolStripMenuItem, toolStripSeparator2, aboutToolStripMenuItem });
@@ -193,18 +180,19 @@
             // checkForUpdateToolStripMenuItem
             // 
             checkForUpdateToolStripMenuItem.Name = "checkForUpdateToolStripMenuItem";
-            checkForUpdateToolStripMenuItem.Size = new Size(165, 22);
+            checkForUpdateToolStripMenuItem.Size = new Size(180, 22);
             checkForUpdateToolStripMenuItem.Text = "Check for Update";
+            checkForUpdateToolStripMenuItem.Click += CheckForUpdateToolStripMenuItem_Click;
             // 
             // toolStripSeparator2
             // 
             toolStripSeparator2.Name = "toolStripSeparator2";
-            toolStripSeparator2.Size = new Size(162, 6);
+            toolStripSeparator2.Size = new Size(177, 6);
             // 
             // aboutToolStripMenuItem
             // 
             aboutToolStripMenuItem.Name = "aboutToolStripMenuItem";
-            aboutToolStripMenuItem.Size = new Size(165, 22);
+            aboutToolStripMenuItem.Size = new Size(180, 22);
             aboutToolStripMenuItem.Text = "About";
             // 
             // mainStatusStrip
@@ -375,7 +363,7 @@
             openFileDialog1.Filter = "All Types|*.ybn;*.ymap;\" + \"|YBN Files|*.ybn|YMAP Files|*.ymap";
             openFileDialog1.Multiselect = true;
             // 
-            // mainForm
+            // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 16F);
             AutoScaleMode = AutoScaleMode.Font;
@@ -397,7 +385,7 @@
             Icon = (Icon)resources.GetObject("$this.Icon");
             MainMenuStrip = mainMenuStrip;
             MaximizeBox = false;
-            Name = "mainForm";
+            Name = "MainForm";
             Text = "YMAP YBN Mover";
             mainMenuStrip.ResumeLayout(false);
             mainMenuStrip.PerformLayout();
@@ -449,8 +437,6 @@
         private ToolStripMenuItem clearAllYBNsToolStripMenuItem;
         private ToolStripSeparator toolStripSeparator4;
         private ToolStripMenuItem calculateVectorDifferenceToolStripMenuItem;
-        private ToolStripSeparator toolStripSeparator5;
-        private ToolStripMenuItem backupFilesToolStripMenuItem;
         private OpenFileDialog openFileDialog1;
     }
 }

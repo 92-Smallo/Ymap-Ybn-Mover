@@ -3,16 +3,18 @@ using CodeWalker.GameFiles;
 using Color = System.Drawing.Color;
 using Vector3 = SharpDX.Vector3;
 using Vector4 = SharpDX.Vector4;
+using Newtonsoft.Json.Linq;
+using System.Diagnostics;
 
 namespace Ymap_Ybn_Mover
 {
-    public partial class mainForm : Form
+    public partial class MainForm : Form
     {
         public DateTime timerTime = DateTime.Now;
         public IDictionary<string, string> fileTypes = new Dictionary<string, string>() { { "YMAP Files", ".ymap" }, { "YBN Files", ".ybn" } };
         public bool interrupt = false;
 
-        public mainForm()
+        public MainForm()
         {
             InitializeComponent();
             CheckForIllegalCrossThreadCalls = false;
@@ -21,6 +23,47 @@ namespace Ymap_Ybn_Mover
             mainList.Columns[1].Width = mainListWidth * 68;
             mainList.Columns[2].Width = mainListWidth * 10;
             mainList.Columns[3].Width = mainListWidth * 10;
+            CheckForUpdate();
+        }
+
+        private static void CheckForUpdate()
+        {
+            string repoUrl = "https://api.github.com/repos/92-Smallo/Ymap-Ybn-Mover/releases/latest";
+
+            using (HttpClient client = new())
+            {
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; AcmeInc/1.0)");
+
+                try
+                {
+                    HttpResponseMessage response = client.GetAsync(repoUrl).Result;
+                    response.EnsureSuccessStatusCode();
+
+                    string responseBody = response.Content.ReadAsStringAsync().Result;
+                    dynamic release = JObject.Parse(responseBody);
+                    string latestVersion = release.tag_name;
+                    string localVersion = "1.0.0";
+
+                    if (latestVersion != localVersion)
+                    {
+                        DialogResult result = MessageBox.Show(
+                            $"A newer version ({latestVersion}) is available. Do you want to download it?",
+                            "Update Available",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Information);
+
+                        if (result == DialogResult.Yes)
+                        {
+                            string url = release.assets[0].browser_download_url;
+                            Process.Start("explorer.exe", url);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
         }
 
         private void AddFiles(string[] fileList)
@@ -57,8 +100,8 @@ namespace Ymap_Ybn_Mover
         private void ExitToolStripMenuItem_Click(object sender, EventArgs e)
         {
             Close();
-            Application.Exit();
-            Application.ExitThread();
+            System.Windows.Forms.Application.Exit();
+            System.Windows.Forms.Application.ExitThread();
         }
 
         private void AddFilesToolStripMenuItem_Click_1(object sender, EventArgs e)
@@ -281,6 +324,7 @@ namespace Ymap_Ybn_Mover
         private void AddFilesToolStripMenuItem_Click(object sender, EventArgs e) => mainFileDialog.ShowDialog();
         private void OpenFileDialog1_FileOk(object sender, EventArgs e) => AddFiles(mainFileDialog.FileNames);
         private void ClearAllYMAPsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".ymap");
-        private void clearAllYBNsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".ybn");
+        private void ClearAllYBNsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".ybn");
+        private void CheckForUpdateToolStripMenuItem_Click(object sender, EventArgs e) => CheckForUpdate();
     }
 }
