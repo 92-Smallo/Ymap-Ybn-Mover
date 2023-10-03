@@ -42,7 +42,7 @@ namespace Ymap_Ybn_Mover
                     string responseBody = response.Content.ReadAsStringAsync().Result;
                     dynamic release = JObject.Parse(responseBody);
                     string latestVersion = release.tag_name;
-                    string localVersion = "1.0.0";
+                    string localVersion = "1.0.2";
 
                     if (latestVersion != localVersion)
                     {
