@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.33516.290
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ymap Ybn Mover", "Ymap Ybn Mover.csproj", "{F4557E9E-132B-4238-BD08-B90243E2B0AA}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F4557E9E-132B-4238-BD08-B90243E2B0AA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F4557E9E-132B-4238-BD08-B90243E2B0AA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F4557E9E-132B-4238-BD08-B90243E2B0AA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F4557E9E-132B-4238-BD08-B90243E2B0AA}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {A21D115C-106C-46F2-976D-A94E1550AEE8}
+	EndGlobalSection
+EndGlobal
