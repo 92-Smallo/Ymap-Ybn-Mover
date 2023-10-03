@@ -67,7 +67,7 @@ namespace Ymap_Ybn_Mover
                     string responseBody = response.Content.ReadAsStringAsync().Result;
                     dynamic release = JObject.Parse(responseBody);
                     string latestVersion = release.tag_name;
-                    string localVersion = "1.0.1";
+                    string localVersion = "1.0.2";
 
                     if (latestVersion != localVersion)
                     {
@@ -81,6 +81,7 @@ namespace Ymap_Ybn_Mover
                         {
                             string url = release.assets[0].browser_download_url;
                             Process.Start("explorer.exe", url);
+                            MessageBox.Show("New version downloaded, please close the program and overwrite your existing version with the new files.", "Update", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
                         }
                     }
                     else
