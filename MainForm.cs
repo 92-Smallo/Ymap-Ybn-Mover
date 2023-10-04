@@ -64,7 +64,7 @@ namespace Ymap_Ybn_Mover
                     string responseBody = response.Content.ReadAsStringAsync().Result;
                     dynamic release = JObject.Parse(responseBody);
                     string latestVersion = release.tag_name;
-                    string localVersion = "1.0.3";
+                    string localVersion = "1.0.4";
 
                     if (latestVersion != localVersion)
                     {
@@ -466,6 +466,9 @@ namespace Ymap_Ybn_Mover
         private void OpenFileDialog1_FileOk(object sender, EventArgs e) => AddFiles(mainFileDialog.FileNames);
         private void ClearAllYMAPsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".ymap");
         private void ClearAllYBNsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".ybn");
+        private void ClearAllYDRsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".ydr");
+        private void ClearAllYDDsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".ydd");
+        private void ClearAllYFTsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".yft");
         private void CheckForUpdateToolStripMenuItem_Click(object sender, EventArgs e) => CheckForUpdate(true);
     }
 }

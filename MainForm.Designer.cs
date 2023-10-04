@@ -28,11 +28,11 @@
         /// </summary>
         private void InitializeComponent()
         {
-            ListViewGroup listViewGroup1 = new ListViewGroup("YMAP Files", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup2 = new ListViewGroup("YBN Files", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup3 = new ListViewGroup("YFT Files", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup4 = new ListViewGroup("YDD Files", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup5 = new ListViewGroup("YDR Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup11 = new ListViewGroup("YMAP Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup12 = new ListViewGroup("YBN Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup13 = new ListViewGroup("YFT Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup14 = new ListViewGroup("YDD Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup15 = new ListViewGroup("YDR Files", HorizontalAlignment.Left);
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             mainMenuStrip = new MenuStrip();
             fileToolStripMenuItem = new ToolStripMenuItem();
@@ -46,6 +46,9 @@
             toolStripSeparator3 = new ToolStripSeparator();
             clearAllYMAPsToolStripMenuItem = new ToolStripMenuItem();
             clearAllYBNsToolStripMenuItem = new ToolStripMenuItem();
+            clearAllYDRsToolStripMenuItem = new ToolStripMenuItem();
+            clearAllYDDsToolStripMenuItem = new ToolStripMenuItem();
+            clearAllYFTsToolStripMenuItem = new ToolStripMenuItem();
             toolStripSeparator4 = new ToolStripSeparator();
             calculateVectorDifferenceToolStripMenuItem = new ToolStripMenuItem();
             helpToolStripMenuItem = new ToolStripMenuItem();
@@ -132,7 +135,7 @@
             // 
             // editToolStripMenuItem
             // 
-            editToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { clearFilesToolStripMenuItem, clearSelectedFilesToolStripMenuItem, toolStripSeparator3, clearAllYMAPsToolStripMenuItem, clearAllYBNsToolStripMenuItem, toolStripSeparator4, calculateVectorDifferenceToolStripMenuItem });
+            editToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { clearFilesToolStripMenuItem, clearSelectedFilesToolStripMenuItem, toolStripSeparator3, clearAllYMAPsToolStripMenuItem, clearAllYBNsToolStripMenuItem, clearAllYDRsToolStripMenuItem, clearAllYDDsToolStripMenuItem, clearAllYFTsToolStripMenuItem, toolStripSeparator4, calculateVectorDifferenceToolStripMenuItem });
             editToolStripMenuItem.Name = "editToolStripMenuItem";
             editToolStripMenuItem.Size = new Size(39, 20);
             editToolStripMenuItem.Text = "Edit";
@@ -169,6 +172,27 @@
             clearAllYBNsToolStripMenuItem.Size = new Size(215, 22);
             clearAllYBNsToolStripMenuItem.Text = "Clear all YBNs";
             clearAllYBNsToolStripMenuItem.Click += ClearAllYBNsToolStripMenuItem_Click;
+            // 
+            // clearAllYDRsToolStripMenuItem
+            // 
+            clearAllYDRsToolStripMenuItem.Name = "clearAllYDRsToolStripMenuItem";
+            clearAllYDRsToolStripMenuItem.Size = new Size(215, 22);
+            clearAllYDRsToolStripMenuItem.Text = "Clear all YDRs";
+            clearAllYDRsToolStripMenuItem.Click += ClearAllYDRsToolStripMenuItem_Click;
+            // 
+            // clearAllYDDsToolStripMenuItem
+            // 
+            clearAllYDDsToolStripMenuItem.Name = "clearAllYDDsToolStripMenuItem";
+            clearAllYDDsToolStripMenuItem.Size = new Size(215, 22);
+            clearAllYDDsToolStripMenuItem.Text = "Clear all YDDs";
+            clearAllYDDsToolStripMenuItem.Click += ClearAllYDDsToolStripMenuItem_Click;
+            // 
+            // clearAllYFTsToolStripMenuItem
+            // 
+            clearAllYFTsToolStripMenuItem.Name = "clearAllYFTsToolStripMenuItem";
+            clearAllYFTsToolStripMenuItem.Size = new Size(215, 22);
+            clearAllYFTsToolStripMenuItem.Text = "Clear all YFTs";
+            clearAllYFTsToolStripMenuItem.Click += ClearAllYFTsToolStripMenuItem_Click;
             // 
             // toolStripSeparator4
             // 
@@ -233,17 +257,17 @@
             // 
             mainList.AllowDrop = true;
             mainList.Columns.AddRange(new ColumnHeader[] { filenameHeader, fileLocationHeader, filesizeHeader, processedHeader });
-            listViewGroup1.Header = "YMAP Files";
-            listViewGroup1.Name = "ymapGroup";
-            listViewGroup2.Header = "YBN Files";
-            listViewGroup2.Name = "ybnGroup";
-            listViewGroup3.Header = "YFT Files";
-            listViewGroup3.Name = "yftGroup";
-            listViewGroup4.Header = "YDD Files";
-            listViewGroup4.Name = "yddGroup";
-            listViewGroup5.Header = "YDR Files";
-            listViewGroup5.Name = "ydrGroup";
-            mainList.Groups.AddRange(new ListViewGroup[] { listViewGroup1, listViewGroup2, listViewGroup3, listViewGroup4, listViewGroup5 });
+            listViewGroup11.Header = "YMAP Files";
+            listViewGroup11.Name = "ymapGroup";
+            listViewGroup12.Header = "YBN Files";
+            listViewGroup12.Name = "ybnGroup";
+            listViewGroup13.Header = "YFT Files";
+            listViewGroup13.Name = "yftGroup";
+            listViewGroup14.Header = "YDD Files";
+            listViewGroup14.Name = "yddGroup";
+            listViewGroup15.Header = "YDR Files";
+            listViewGroup15.Name = "ydrGroup";
+            mainList.Groups.AddRange(new ListViewGroup[] { listViewGroup11, listViewGroup12, listViewGroup13, listViewGroup14, listViewGroup15 });
             mainList.HeaderStyle = ColumnHeaderStyle.Nonclickable;
             mainList.Location = new Point(12, 27);
             mainList.Name = "mainList";
@@ -545,5 +569,8 @@
         private RichTextBox howToUseRichTextBox;
         private Button howToUseCloseButton;
         private GroupBox howToUseGroupBox;
+        private ToolStripMenuItem clearAllYDRsToolStripMenuItem;
+        private ToolStripMenuItem clearAllYDDsToolStripMenuItem;
+        private ToolStripMenuItem clearAllYFTsToolStripMenuItem;
     }
 }
