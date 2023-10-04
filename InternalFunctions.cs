@@ -42,6 +42,17 @@ namespace Internal_Functions
             item.SubItems[3].ForeColor = colour;
             mainList.EndUpdate();
         }
+
+        public static bool DoesEntryExist(string filename, ListView mainList)
+        {
+            foreach (ListViewItem item in mainList.Items.OfType<ListViewItem>())
+            {
+                if (item.SubItems[1].Text == filename)
+                    return true;
+            }
+
+            return false;
+        }
     }
 
     public class OtherFunctions

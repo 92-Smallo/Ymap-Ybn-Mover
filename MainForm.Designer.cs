@@ -30,7 +30,9 @@
         {
             ListViewGroup listViewGroup1 = new ListViewGroup("YMAP Files", HorizontalAlignment.Left);
             ListViewGroup listViewGroup2 = new ListViewGroup("YBN Files", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup3 = new ListViewGroup("RPF Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup3 = new ListViewGroup("YFT Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup4 = new ListViewGroup("YDD Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup5 = new ListViewGroup("YDR Files", HorizontalAlignment.Left);
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             mainMenuStrip = new MenuStrip();
             fileToolStripMenuItem = new ToolStripMenuItem();
@@ -49,6 +51,7 @@
             helpToolStripMenuItem = new ToolStripMenuItem();
             checkForUpdateToolStripMenuItem = new ToolStripMenuItem();
             toolStripSeparator2 = new ToolStripSeparator();
+            howToUseToolStripMenuItem = new ToolStripMenuItem();
             aboutToolStripMenuItem = new ToolStripMenuItem();
             mainStatusStrip = new StatusStrip();
             timeElapsedLabel = new ToolStripStatusLabel();
@@ -70,11 +73,19 @@
             xMoveNumeric = new NumericUpDown();
             xMoveLabel = new Label();
             openFileDialog1 = new OpenFileDialog();
+            aboutGroupBox = new GroupBox();
+            aboutRichTextBox = new RichTextBox();
+            closeAboutButton = new Button();
+            howToUseRichTextBox = new RichTextBox();
+            howToUseCloseButton = new Button();
+            howToUseGroupBox = new GroupBox();
             mainMenuStrip.SuspendLayout();
             mainStatusStrip.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)zMoveNumeric).BeginInit();
             ((System.ComponentModel.ISupportInitialize)yMoveNumeric).BeginInit();
             ((System.ComponentModel.ISupportInitialize)xMoveNumeric).BeginInit();
+            aboutGroupBox.SuspendLayout();
+            howToUseGroupBox.SuspendLayout();
             SuspendLayout();
             // 
             // mainMenuStrip
@@ -173,7 +184,7 @@
             // 
             // helpToolStripMenuItem
             // 
-            helpToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { checkForUpdateToolStripMenuItem, toolStripSeparator2, aboutToolStripMenuItem });
+            helpToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { checkForUpdateToolStripMenuItem, toolStripSeparator2, howToUseToolStripMenuItem, aboutToolStripMenuItem });
             helpToolStripMenuItem.Name = "helpToolStripMenuItem";
             helpToolStripMenuItem.Size = new Size(44, 20);
             helpToolStripMenuItem.Text = "Help";
@@ -190,11 +201,19 @@
             toolStripSeparator2.Name = "toolStripSeparator2";
             toolStripSeparator2.Size = new Size(162, 6);
             // 
+            // howToUseToolStripMenuItem
+            // 
+            howToUseToolStripMenuItem.Name = "howToUseToolStripMenuItem";
+            howToUseToolStripMenuItem.Size = new Size(165, 22);
+            howToUseToolStripMenuItem.Text = "How to Use";
+            howToUseToolStripMenuItem.Click += HowToUseToolStripMenuItem_Click;
+            // 
             // aboutToolStripMenuItem
             // 
             aboutToolStripMenuItem.Name = "aboutToolStripMenuItem";
             aboutToolStripMenuItem.Size = new Size(165, 22);
             aboutToolStripMenuItem.Text = "About";
+            aboutToolStripMenuItem.Click += AboutToolStripMenuItem_Click;
             // 
             // mainStatusStrip
             // 
@@ -218,9 +237,13 @@
             listViewGroup1.Name = "ymapGroup";
             listViewGroup2.Header = "YBN Files";
             listViewGroup2.Name = "ybnGroup";
-            listViewGroup3.Header = "RPF Files";
-            listViewGroup3.Name = "rpfGroup";
-            mainList.Groups.AddRange(new ListViewGroup[] { listViewGroup1, listViewGroup2, listViewGroup3 });
+            listViewGroup3.Header = "YFT Files";
+            listViewGroup3.Name = "yftGroup";
+            listViewGroup4.Header = "YDD Files";
+            listViewGroup4.Name = "yddGroup";
+            listViewGroup5.Header = "YDR Files";
+            listViewGroup5.Name = "ydrGroup";
+            mainList.Groups.AddRange(new ListViewGroup[] { listViewGroup1, listViewGroup2, listViewGroup3, listViewGroup4, listViewGroup5 });
             mainList.HeaderStyle = ColumnHeaderStyle.Nonclickable;
             mainList.Location = new Point(12, 27);
             mainList.Name = "mainList";
@@ -361,14 +384,88 @@
             // openFileDialog1
             // 
             openFileDialog1.FileName = "openFileDialog1";
-            openFileDialog1.Filter = "All Types|*.ybn;*.ymap;\" + \"|YBN Files|*.ybn|YMAP Files|*.ymap";
+            openFileDialog1.Filter = "All Types|*.ybn;*.ymap;*.ydr;*.ydd;*.yft;\" + \"|YBN Files|*.ybn|YMAP Files|*.ymap|YDR Files|*.ydr|YDD Files|*.ydd|YFT Files|*.yft";
             openFileDialog1.Multiselect = true;
+            // 
+            // aboutGroupBox
+            // 
+            aboutGroupBox.Controls.Add(aboutRichTextBox);
+            aboutGroupBox.Controls.Add(closeAboutButton);
+            aboutGroupBox.Location = new Point(340, 71);
+            aboutGroupBox.Name = "aboutGroupBox";
+            aboutGroupBox.Size = new Size(337, 327);
+            aboutGroupBox.TabIndex = 25;
+            aboutGroupBox.TabStop = false;
+            aboutGroupBox.Text = "About";
+            aboutGroupBox.Visible = false;
+            // 
+            // aboutRichTextBox
+            // 
+            aboutRichTextBox.BackColor = SystemColors.Control;
+            aboutRichTextBox.BorderStyle = BorderStyle.None;
+            aboutRichTextBox.Font = new Font("Segoe UI Variable Text", 11.25F, FontStyle.Regular, GraphicsUnit.Point);
+            aboutRichTextBox.Location = new Point(6, 22);
+            aboutRichTextBox.Name = "aboutRichTextBox";
+            aboutRichTextBox.ReadOnly = true;
+            aboutRichTextBox.Size = new Size(325, 270);
+            aboutRichTextBox.TabIndex = 1;
+            aboutRichTextBox.Text = resources.GetString("aboutRichTextBox.Text");
+            aboutRichTextBox.Visible = false;
+            // 
+            // closeAboutButton
+            // 
+            closeAboutButton.Location = new Point(131, 298);
+            closeAboutButton.Name = "closeAboutButton";
+            closeAboutButton.Size = new Size(75, 23);
+            closeAboutButton.TabIndex = 0;
+            closeAboutButton.Text = "Close";
+            closeAboutButton.UseVisualStyleBackColor = true;
+            closeAboutButton.Visible = false;
+            closeAboutButton.Click += CloseAboutButton_Click;
+            // 
+            // howToUseRichTextBox
+            // 
+            howToUseRichTextBox.BackColor = SystemColors.Control;
+            howToUseRichTextBox.BorderStyle = BorderStyle.None;
+            howToUseRichTextBox.Font = new Font("Segoe UI Variable Text", 12F, FontStyle.Regular, GraphicsUnit.Point);
+            howToUseRichTextBox.Location = new Point(6, 22);
+            howToUseRichTextBox.Name = "howToUseRichTextBox";
+            howToUseRichTextBox.ReadOnly = true;
+            howToUseRichTextBox.Size = new Size(954, 270);
+            howToUseRichTextBox.TabIndex = 1;
+            howToUseRichTextBox.Text = resources.GetString("howToUseRichTextBox.Text");
+            howToUseRichTextBox.Visible = false;
+            // 
+            // howToUseCloseButton
+            // 
+            howToUseCloseButton.Location = new Point(446, 298);
+            howToUseCloseButton.Name = "howToUseCloseButton";
+            howToUseCloseButton.Size = new Size(75, 23);
+            howToUseCloseButton.TabIndex = 0;
+            howToUseCloseButton.Text = "Close";
+            howToUseCloseButton.UseVisualStyleBackColor = true;
+            howToUseCloseButton.Visible = false;
+            howToUseCloseButton.Click += HowToUseCloseButton_Click;
+            // 
+            // howToUseGroupBox
+            // 
+            howToUseGroupBox.Controls.Add(howToUseRichTextBox);
+            howToUseGroupBox.Controls.Add(howToUseCloseButton);
+            howToUseGroupBox.Location = new Point(25, 71);
+            howToUseGroupBox.Name = "howToUseGroupBox";
+            howToUseGroupBox.Size = new Size(966, 327);
+            howToUseGroupBox.TabIndex = 26;
+            howToUseGroupBox.TabStop = false;
+            howToUseGroupBox.Text = "How to Use";
+            howToUseGroupBox.Visible = false;
             // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 16F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1016, 522);
+            Controls.Add(howToUseGroupBox);
+            Controls.Add(aboutGroupBox);
             Controls.Add(xMoveNumeric);
             Controls.Add(xMoveLabel);
             Controls.Add(yMoveNumeric);
@@ -395,6 +492,8 @@
             ((System.ComponentModel.ISupportInitialize)zMoveNumeric).EndInit();
             ((System.ComponentModel.ISupportInitialize)yMoveNumeric).EndInit();
             ((System.ComponentModel.ISupportInitialize)xMoveNumeric).EndInit();
+            aboutGroupBox.ResumeLayout(false);
+            howToUseGroupBox.ResumeLayout(false);
             ResumeLayout(false);
             PerformLayout();
         }
@@ -439,5 +538,12 @@
         private ToolStripSeparator toolStripSeparator4;
         private ToolStripMenuItem calculateVectorDifferenceToolStripMenuItem;
         private OpenFileDialog openFileDialog1;
+        private GroupBox aboutGroupBox;
+        private Button closeAboutButton;
+        private RichTextBox aboutRichTextBox;
+        private ToolStripMenuItem howToUseToolStripMenuItem;
+        private RichTextBox howToUseRichTextBox;
+        private Button howToUseCloseButton;
+        private GroupBox howToUseGroupBox;
     }
 }

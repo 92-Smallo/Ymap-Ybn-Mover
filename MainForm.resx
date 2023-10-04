@@ -132,6 +132,22 @@
   <metadata name="openFileDialog1.TrayLocation" type="System.Drawing.Point, System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
     <value>529, 17</value>
   </metadata>
+  <data name="aboutRichTextBox.Text" xml:space="preserve">
+    <value>This tool was created by Smallo for the purpose of moving maps. 
+
+I noticed that a lot of custom maps were put in the same spot, so I made this to make it easier to move them. 
+
+The tool has changed several times over the years, this is the 3rd major iteration of it. 
+
+None of this would be possible without dexyfex and Codewalker.</value>
+  </data>
+  <data name="howToUseRichTextBox.Text" xml:space="preserve">
+    <value>The tool is pretty simple to use, add your files to the program, either by press file and adding the folder/files, or even drag and dropping the files into the program.
+
+You then need to set an offset to choose where to move your map, it's pretty simple to calculate, I recommend using Codewalker to help. You can also use the 'Calculate Vector Difference' tool in the Edit dropdown. Open your existing map in Codewalker, grab one item from the map, copy the coordinates of the files into the 'Old Location' section of the tool. Now move the item to where you want the map to be, copy the new coordinates now and put them in the 'New Location' textbox of the tool. Then press 'Calculate Difference', this will work out the difference, then press 'Input Offset' and it'll close the form and put the offset into the move offset seciton. Then simple press 'Process Files' and away it goes, this might take a while depending on how many and the size of the files you have.
+
+To use what was formally known as the "Poly Edge Fix" tool, simply add those files (ydr, ydd, yft) to the program as well, then press 'Process All' it will ignore all offsets and just process the items as normal.</value>
+  </data>
   <assembly alias="System.Drawing" name="System.Drawing, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
   <data name="$this.Icon" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
     <value>

@@ -5,15 +5,12 @@ using Vector3 = SharpDX.Vector3;
 using Vector4 = SharpDX.Vector4;
 using Newtonsoft.Json.Linq;
 using System.Diagnostics;
-using System.Security.Policy;
-using System.Xml.Linq;
 
 namespace Ymap_Ybn_Mover
 {
     public partial class MainForm : Form
     {
         public DateTime timerTime = DateTime.Now;
-        public IDictionary<string, string> fileTypes = new Dictionary<string, string>() { { "YMAP Files", ".ymap" }, { "YBN Files", ".ybn" } };
         public bool interrupt = false;
 
         public ListView.SelectedListViewItemCollection SelectedMaps
@@ -99,6 +96,7 @@ namespace Ymap_Ybn_Mover
 
         private void AddFiles(string[] fileList)
         {
+            IDictionary<string, string> fileTypes = new Dictionary<string, string>() { { "YMAP Files", ".ymap" }, { "YBN Files", ".ybn" }, { "YDR Files", ".ydr" }, { "YDD Files", ".ydd" }, { "YFT Files", ".yft" } };
             mainList.BeginUpdate();
             foreach (string file in fileList)
             {
@@ -108,8 +106,11 @@ namespace Ymap_Ybn_Mover
                     {
                         if (group.Header == fileType.Key && file.EndsWith(fileType.Value))
                         {
-                            CreateListEntry(fileType.Value, file, group);
-                            break;
+                            if (!StringFunctions.DoesEntryExist(file, mainList))
+                            {
+                                CreateListEntry(fileType.Value, file, group);
+                                break;
+                            }
                         }
                     }
                 }
@@ -151,11 +152,19 @@ namespace Ymap_Ybn_Mover
             if (mainFolderDialog.ShowDialog(this) == DialogResult.OK)
             {
                 var options = new EnumerationOptions() { IgnoreInaccessible = true, RecurseSubdirectories = true };
-                string[] ymapFiles = Directory.GetFiles(mainFolderDialog.SelectedPath, "*.ymap", options);
-                string[] ybnFiles = Directory.GetFiles(mainFolderDialog.SelectedPath, "*.ybn", options);
+                List<string> files = new();
+                List<string> fileTypes = new() { "*.ymap", "*.ybn", "*.ydr", "*.ydd", "*.yft" };
 
-                AddFiles(ymapFiles);
-                AddFiles(ybnFiles);
+                foreach (string fileType in fileTypes)
+                    files.AddRange(Directory.GetFiles(mainFolderDialog.SelectedPath, fileType, options));
+
+                if (files.Count == 0)
+                {
+                    MessageBox.Show("No files found.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+
+                AddFiles(files.ToArray());
             }
         }
 
@@ -183,6 +192,49 @@ namespace Ymap_Ybn_Mover
             }
 
             AddFiles(allFiles.ToArray());
+        }
+
+        private void ClearFilesToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            foreach (ListViewItem item in mainList.Items)
+                item.Remove();
+        }
+
+        private void ClearSelectedFilesToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            foreach (ListViewItem item in mainList.Items)
+            {
+                if (item.Selected)
+                    item.Remove();
+            }
+        }
+        private void AboutToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            aboutGroupBox.Visible = true;
+            aboutRichTextBox.Visible = true;
+            closeAboutButton.Visible = true;
+        }
+
+        private void CloseAboutButton_Click(object sender, EventArgs e)
+        {
+
+            aboutGroupBox.Visible = false;
+            aboutRichTextBox.Visible = false;
+            closeAboutButton.Visible = false;
+        }
+
+        private void HowToUseToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            howToUseCloseButton.Visible = true;
+            howToUseGroupBox.Visible = true;
+            howToUseRichTextBox.Visible = true;
+        }
+
+        private void HowToUseCloseButton_Click(object sender, EventArgs e)
+        {
+            howToUseCloseButton.Visible = false;
+            howToUseGroupBox.Visible = false;
+            howToUseRichTextBox.Visible = false;
         }
 
         public void TimerTick(object info)
@@ -337,6 +389,15 @@ namespace Ymap_Ybn_Mover
                         StringFunctions.UpdateStatus("Complete", mainList, item, Color.Green);
                     }
 
+                    if (filename.EndsWith(".ydr"))
+                        RunPolyEdge(item, filename, "ydr");
+
+                    if (filename.EndsWith(".yft"))
+                        RunPolyEdge(item, filename, "yft");
+
+                    if (filename.EndsWith(".ydd"))
+                        RunPolyEdge(item, filename, "ydd");
+
                     if (interrupt)
                     {
                         StringFunctions.UpdateStatus("Cancelled", mainList, item, Color.Red);
@@ -348,13 +409,57 @@ namespace Ymap_Ybn_Mover
                     }
                 }
                 watch.Dispose();
+                processAllButton.Enabled = true;
+                processSelectedButton.Enabled = true;
+                stopButton.Enabled = false;
             }).Start();
 
             stopButton.Click += (s, e) => { interrupt = true; };
         }
 
-        private void ClearFilesToolStripMenuItem_Click(object sender, EventArgs e) => mainList.Clear();
-        private void ClearSelectedFilesToolStripMenuItem_Click(object sender, EventArgs e) => mainList.SelectedItems.Clear();
+        private void RunPolyEdge(ListViewItem item, string filename, string filetype)
+        {
+            YdrFile ydr = new();
+            YddFile ydd = new();
+            YftFile yft = new();
+            byte[] oldData;
+            byte[] newData;
+
+            StringFunctions.UpdateStatus("File Loaded", mainList, item, Color.Red);
+
+            try
+            {
+                oldData = File.ReadAllBytes(filename);
+
+                if (filetype == "ydr")
+                {
+                    RpfFile.LoadResourceFile(ydr, oldData, 165);
+                    newData = ydr.Save();
+                    File.WriteAllBytes(filename, newData);
+                }
+
+                if (filetype == "ydd")
+                {
+                    RpfFile.LoadResourceFile(ydd, oldData, 165);
+                    newData = ydd.Save();
+                    File.WriteAllBytes(filename, newData);
+                }
+
+                if (filetype == "yft")
+                {
+                    RpfFile.LoadResourceFile(yft, oldData, 162);
+                    newData = yft.Save();
+                    File.WriteAllBytes(filename, newData);
+                }
+            }
+            catch (Exception)
+            {
+                StringFunctions.UpdateStatus("Error", mainList, item, Color.Red);
+            }
+
+            StringFunctions.UpdateStatus("Complete", mainList, item, Color.Green);
+        }
+
         private void ProcessAllButton_Click(object sender, EventArgs e) => ProcessFiles(mainList.Items.OfType<ListViewItem>());
         private void ProcessSelectedButton_Click(object sender, EventArgs e) => ProcessFiles(mainList.SelectedItems.OfType<ListViewItem>());
         private void AddFilesToolStripMenuItem_Click(object sender, EventArgs e) => mainFileDialog.ShowDialog();
