@@ -5,6 +5,7 @@ using Vector3 = SharpDX.Vector3;
 using Vector4 = SharpDX.Vector4;
 using Newtonsoft.Json.Linq;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace Ymap_Ybn_Mover
 {
@@ -12,29 +13,10 @@ namespace Ymap_Ybn_Mover
     {
         public DateTime timerTime = DateTime.Now;
         public bool interrupt = false;
-
-        public ListView.SelectedListViewItemCollection SelectedMaps
-        {
-            get { return mainList.SelectedItems; }
-        }
-
-        public decimal XMove
-        {
-            get { return xMoveNumeric.Value; }
-            set { xMoveNumeric.Value = value; }
-        }
-
-        public decimal YMove
-        {
-            get { return yMoveNumeric.Value; }
-            set { yMoveNumeric.Value = value; }
-        }
-
-        public decimal ZMove
-        {
-            get { return zMoveNumeric.Value; }
-            set { zMoveNumeric.Value = value; }
-        }
+        private Vector3 offsetVec = new();
+        private readonly List<Control> aboutControls = new();
+        private readonly List<Control> howToControls = new();
+        private readonly List<Control> vecDiffControls = new();
 
         public MainForm()
         {
@@ -46,6 +28,28 @@ namespace Ymap_Ybn_Mover
             mainList.Columns[2].Width = mainListWidth * 10;
             mainList.Columns[3].Width = mainListWidth * 10;
             CheckForUpdate();
+
+            aboutControls.Add(aboutGroupBox);
+            aboutControls.Add(aboutRichTextBox);
+            aboutControls.Add(closeAboutButton);
+
+            howToControls.Add(howToUseCloseButton);
+            howToControls.Add(howToUseGroupBox);
+            howToControls.Add(howToUseRichTextBox);
+
+            vecDiffControls.Add(vecDiffGroupBox);
+            vecDiffControls.Add(vecDiffCloseButton);
+            vecDiffControls.Add(CalculateButton);
+            vecDiffControls.Add(CentreButton);
+            vecDiffControls.Add(InputButton);
+            vecDiffControls.Add(InvertButton);
+            vecDiffControls.Add(newOffset);
+            vecDiffControls.Add(vector1);
+            vecDiffControls.Add(vector2);
+            vecDiffControls.Add(CalculatedLabel);
+            vecDiffControls.Add(OGLocLabel);
+            vecDiffControls.Add(newLocLabel);
+            vecDiffControls.Add(InstructionsLabel);
         }
 
         private static void CheckForUpdate(bool manualCheck = false)
@@ -64,7 +68,7 @@ namespace Ymap_Ybn_Mover
                     string responseBody = response.Content.ReadAsStringAsync().Result;
                     dynamic release = JObject.Parse(responseBody);
                     string latestVersion = release.tag_name;
-                    string localVersion = "1.0.4";
+                    string localVersion = "1.0.5";
 
                     if (latestVersion != localVersion)
                     {
@@ -136,15 +140,57 @@ namespace Ymap_Ybn_Mover
             Application.ExitThread();
         }
 
+        private void InputButton_Click(object sender, EventArgs e)
+        {
+            xMoveNumeric.Value = (decimal)offsetVec.X;
+            yMoveNumeric.Value = (decimal)offsetVec.Y;
+            zMoveNumeric.Value = (decimal)offsetVec.Z;
+        }
+
+        private void CentreButton_Click(object sender, EventArgs e)
+        {
+            List<Vector3> vectors = new();
+            ListView.SelectedListViewItemCollection selectedFiles = mainList.SelectedItems;
+            if (selectedFiles.Count == 0)
+            {
+                MessageBox.Show("You don't have any maps selected.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            foreach (ListViewItem item in selectedFiles)
+            {
+                YmapFile ymap = new();
+                ymap.Load(File.ReadAllBytes(item.SubItems[1].Text));
+                vectors.Add(MathFunctions.GetCentre(ymap.CMapData.entitiesExtentsMin, ymap.CMapData.entitiesExtentsMax));
+            }
+
+            Vector3 centerPoint = MathFunctions.GetCentreFromList(vectors);
+            vector1.Text = centerPoint.X + ", " + centerPoint.Y + ", " + centerPoint.Z;
+        }
+
+        private void CalculateButton_Click(object sender, EventArgs e)
+        {
+            if (!string.IsNullOrEmpty(vector1.Text) || !string.IsNullOrEmpty(vector2.Text))
+            {
+                try
+                {
+                    string[] OldLocSplit = vector1.Text.Split(',');
+                    string[] NewLocSplit = vector2.Text.Split(',');
+
+                    offsetVec = new Vector3(float.Parse(NewLocSplit[0]), float.Parse(NewLocSplit[1]), float.Parse(NewLocSplit[2])) - new Vector3(float.Parse(OldLocSplit[0]), float.Parse(OldLocSplit[1]), float.Parse(OldLocSplit[2]));
+                    newOffset.Text = offsetVec.X.ToString() + ", " + offsetVec.Y.ToString() + ", " + offsetVec.Z.ToString();
+                }
+                catch (Exception)
+                {
+                    MessageBox.Show("The vectors don't appear to be in the correct format.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+        }
+
         private void AddFilesToolStripMenuItem_Click_1(object sender, EventArgs e)
         {
             if (openFileDialog1.ShowDialog(this) == DialogResult.OK)
                 AddFiles(openFileDialog1.FileNames);
-        }
-        private void CalculateVectorDifferenceToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            CalcVect calculateVectorForm = new(this);
-            calculateVectorForm.ShowDialog();
         }
 
         private void AddFolderToolStripMenuItem_Click(object sender, EventArgs e)
@@ -208,33 +254,11 @@ namespace Ymap_Ybn_Mover
                     item.Remove();
             }
         }
-        private void AboutToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            aboutGroupBox.Visible = true;
-            aboutRichTextBox.Visible = true;
-            closeAboutButton.Visible = true;
-        }
 
-        private void CloseAboutButton_Click(object sender, EventArgs e)
+        private static void ToggleControlVisibility(List<Control> controls, bool visible)
         {
-
-            aboutGroupBox.Visible = false;
-            aboutRichTextBox.Visible = false;
-            closeAboutButton.Visible = false;
-        }
-
-        private void HowToUseToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            howToUseCloseButton.Visible = true;
-            howToUseGroupBox.Visible = true;
-            howToUseRichTextBox.Visible = true;
-        }
-
-        private void HowToUseCloseButton_Click(object sender, EventArgs e)
-        {
-            howToUseCloseButton.Visible = false;
-            howToUseGroupBox.Visible = false;
-            howToUseRichTextBox.Visible = false;
+            foreach (Control control in controls)
+                control.Visible = visible;
         }
 
         public void TimerTick(object info)
@@ -464,11 +488,18 @@ namespace Ymap_Ybn_Mover
         private void ProcessSelectedButton_Click(object sender, EventArgs e) => ProcessFiles(mainList.SelectedItems.OfType<ListViewItem>());
         private void AddFilesToolStripMenuItem_Click(object sender, EventArgs e) => mainFileDialog.ShowDialog();
         private void OpenFileDialog1_FileOk(object sender, EventArgs e) => AddFiles(mainFileDialog.FileNames);
+        private void InvertButton_Click(object sender, EventArgs e) => (vector2.Text, vector1.Text) = (vector1.Text, vector2.Text);
         private void ClearAllYMAPsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".ymap");
         private void ClearAllYBNsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".ybn");
         private void ClearAllYDRsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".ydr");
         private void ClearAllYDDsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".ydd");
         private void ClearAllYFTsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".yft");
         private void CheckForUpdateToolStripMenuItem_Click(object sender, EventArgs e) => CheckForUpdate(true);
+        private void AboutToolStripMenuItem_Click(object sender, EventArgs e) => ToggleControlVisibility(aboutControls, true);
+        private void CloseAboutButton_Click(object sender, EventArgs e) => ToggleControlVisibility(aboutControls, false);
+        private void HowToUseToolStripMenuItem_Click(object sender, EventArgs e) => ToggleControlVisibility(howToControls, true);
+        private void HowToUseCloseButton_Click(object sender, EventArgs e) => ToggleControlVisibility(howToControls, false);
+        private void CalcVecDiffStripMenuItem_Click(object sender, EventArgs e) => ToggleControlVisibility(vecDiffControls, true);
+        private void VecDiffCloseButton_Click(object sender, EventArgs e) => ToggleControlVisibility(vecDiffControls, false);
     }
 }

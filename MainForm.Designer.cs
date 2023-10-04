@@ -28,11 +28,11 @@
         /// </summary>
         private void InitializeComponent()
         {
-            ListViewGroup listViewGroup11 = new ListViewGroup("YMAP Files", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup12 = new ListViewGroup("YBN Files", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup13 = new ListViewGroup("YFT Files", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup14 = new ListViewGroup("YDD Files", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup15 = new ListViewGroup("YDR Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup6 = new ListViewGroup("YMAP Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup7 = new ListViewGroup("YBN Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup8 = new ListViewGroup("YFT Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup9 = new ListViewGroup("YDD Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup10 = new ListViewGroup("YDR Files", HorizontalAlignment.Left);
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             mainMenuStrip = new MenuStrip();
             fileToolStripMenuItem = new ToolStripMenuItem();
@@ -50,7 +50,7 @@
             clearAllYDDsToolStripMenuItem = new ToolStripMenuItem();
             clearAllYFTsToolStripMenuItem = new ToolStripMenuItem();
             toolStripSeparator4 = new ToolStripSeparator();
-            calculateVectorDifferenceToolStripMenuItem = new ToolStripMenuItem();
+            calcVecDiffStripMenuItem = new ToolStripMenuItem();
             helpToolStripMenuItem = new ToolStripMenuItem();
             checkForUpdateToolStripMenuItem = new ToolStripMenuItem();
             toolStripSeparator2 = new ToolStripSeparator();
@@ -82,6 +82,19 @@
             howToUseRichTextBox = new RichTextBox();
             howToUseCloseButton = new Button();
             howToUseGroupBox = new GroupBox();
+            vecDiffGroupBox = new GroupBox();
+            CentreButton = new Button();
+            InvertButton = new Button();
+            InstructionsLabel = new Label();
+            InputButton = new Button();
+            CalculatedLabel = new Label();
+            newLocLabel = new Label();
+            OGLocLabel = new Label();
+            newOffset = new TextBox();
+            vector2 = new TextBox();
+            vector1 = new TextBox();
+            CalculateButton = new Button();
+            vecDiffCloseButton = new Button();
             mainMenuStrip.SuspendLayout();
             mainStatusStrip.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)zMoveNumeric).BeginInit();
@@ -89,6 +102,7 @@
             ((System.ComponentModel.ISupportInitialize)xMoveNumeric).BeginInit();
             aboutGroupBox.SuspendLayout();
             howToUseGroupBox.SuspendLayout();
+            vecDiffGroupBox.SuspendLayout();
             SuspendLayout();
             // 
             // mainMenuStrip
@@ -135,7 +149,7 @@
             // 
             // editToolStripMenuItem
             // 
-            editToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { clearFilesToolStripMenuItem, clearSelectedFilesToolStripMenuItem, toolStripSeparator3, clearAllYMAPsToolStripMenuItem, clearAllYBNsToolStripMenuItem, clearAllYDRsToolStripMenuItem, clearAllYDDsToolStripMenuItem, clearAllYFTsToolStripMenuItem, toolStripSeparator4, calculateVectorDifferenceToolStripMenuItem });
+            editToolStripMenuItem.DropDownItems.AddRange(new ToolStripItem[] { clearFilesToolStripMenuItem, clearSelectedFilesToolStripMenuItem, toolStripSeparator3, clearAllYMAPsToolStripMenuItem, clearAllYBNsToolStripMenuItem, clearAllYDRsToolStripMenuItem, clearAllYDDsToolStripMenuItem, clearAllYFTsToolStripMenuItem, toolStripSeparator4, calcVecDiffStripMenuItem });
             editToolStripMenuItem.Name = "editToolStripMenuItem";
             editToolStripMenuItem.Size = new Size(39, 20);
             editToolStripMenuItem.Text = "Edit";
@@ -199,12 +213,12 @@
             toolStripSeparator4.Name = "toolStripSeparator4";
             toolStripSeparator4.Size = new Size(212, 6);
             // 
-            // calculateVectorDifferenceToolStripMenuItem
+            // calcVecDiffStripMenuItem
             // 
-            calculateVectorDifferenceToolStripMenuItem.Name = "calculateVectorDifferenceToolStripMenuItem";
-            calculateVectorDifferenceToolStripMenuItem.Size = new Size(215, 22);
-            calculateVectorDifferenceToolStripMenuItem.Text = "Calculate Vector Difference";
-            calculateVectorDifferenceToolStripMenuItem.Click += CalculateVectorDifferenceToolStripMenuItem_Click;
+            calcVecDiffStripMenuItem.Name = "calcVecDiffStripMenuItem";
+            calcVecDiffStripMenuItem.Size = new Size(215, 22);
+            calcVecDiffStripMenuItem.Text = "Calculate Vector Difference";
+            calcVecDiffStripMenuItem.Click += CalcVecDiffStripMenuItem_Click;
             // 
             // helpToolStripMenuItem
             // 
@@ -257,17 +271,17 @@
             // 
             mainList.AllowDrop = true;
             mainList.Columns.AddRange(new ColumnHeader[] { filenameHeader, fileLocationHeader, filesizeHeader, processedHeader });
-            listViewGroup11.Header = "YMAP Files";
-            listViewGroup11.Name = "ymapGroup";
-            listViewGroup12.Header = "YBN Files";
-            listViewGroup12.Name = "ybnGroup";
-            listViewGroup13.Header = "YFT Files";
-            listViewGroup13.Name = "yftGroup";
-            listViewGroup14.Header = "YDD Files";
-            listViewGroup14.Name = "yddGroup";
-            listViewGroup15.Header = "YDR Files";
-            listViewGroup15.Name = "ydrGroup";
-            mainList.Groups.AddRange(new ListViewGroup[] { listViewGroup11, listViewGroup12, listViewGroup13, listViewGroup14, listViewGroup15 });
+            listViewGroup6.Header = "YMAP Files";
+            listViewGroup6.Name = "ymapGroup";
+            listViewGroup7.Header = "YBN Files";
+            listViewGroup7.Name = "ybnGroup";
+            listViewGroup8.Header = "YFT Files";
+            listViewGroup8.Name = "yftGroup";
+            listViewGroup9.Header = "YDD Files";
+            listViewGroup9.Name = "yddGroup";
+            listViewGroup10.Header = "YDR Files";
+            listViewGroup10.Name = "ydrGroup";
+            mainList.Groups.AddRange(new ListViewGroup[] { listViewGroup6, listViewGroup7, listViewGroup8, listViewGroup9, listViewGroup10 });
             mainList.HeaderStyle = ColumnHeaderStyle.Nonclickable;
             mainList.Location = new Point(12, 27);
             mainList.Name = "mainList";
@@ -483,11 +497,167 @@
             howToUseGroupBox.Text = "How to Use";
             howToUseGroupBox.Visible = false;
             // 
+            // vecDiffGroupBox
+            // 
+            vecDiffGroupBox.Controls.Add(CentreButton);
+            vecDiffGroupBox.Controls.Add(InvertButton);
+            vecDiffGroupBox.Controls.Add(InstructionsLabel);
+            vecDiffGroupBox.Controls.Add(InputButton);
+            vecDiffGroupBox.Controls.Add(CalculatedLabel);
+            vecDiffGroupBox.Controls.Add(newLocLabel);
+            vecDiffGroupBox.Controls.Add(OGLocLabel);
+            vecDiffGroupBox.Controls.Add(newOffset);
+            vecDiffGroupBox.Controls.Add(vector2);
+            vecDiffGroupBox.Controls.Add(vector1);
+            vecDiffGroupBox.Controls.Add(CalculateButton);
+            vecDiffGroupBox.Controls.Add(vecDiffCloseButton);
+            vecDiffGroupBox.Location = new Point(305, 126);
+            vecDiffGroupBox.Name = "vecDiffGroupBox";
+            vecDiffGroupBox.Size = new Size(407, 200);
+            vecDiffGroupBox.TabIndex = 27;
+            vecDiffGroupBox.TabStop = false;
+            vecDiffGroupBox.Text = "Calculate Vector Difference";
+            vecDiffGroupBox.Visible = false;
+            // 
+            // CentreButton
+            // 
+            CentreButton.Location = new Point(112, 134);
+            CentreButton.Margin = new Padding(4);
+            CentreButton.Name = "CentreButton";
+            CentreButton.Size = new Size(88, 28);
+            CentreButton.TabIndex = 32;
+            CentreButton.Text = "Get Centre";
+            CentreButton.UseVisualStyleBackColor = true;
+            CentreButton.Visible = false;
+            CentreButton.Click += CentreButton_Click;
+            // 
+            // InvertButton
+            // 
+            InvertButton.Location = new Point(302, 134);
+            InvertButton.Margin = new Padding(4);
+            InvertButton.Name = "InvertButton";
+            InvertButton.Size = new Size(88, 28);
+            InvertButton.TabIndex = 31;
+            InvertButton.Text = "Invert Inputs";
+            InvertButton.UseVisualStyleBackColor = true;
+            InvertButton.Visible = false;
+            InvertButton.Click += InvertButton_Click;
+            // 
+            // InstructionsLabel
+            // 
+            InstructionsLabel.AutoSize = true;
+            InstructionsLabel.Location = new Point(295, 18);
+            InstructionsLabel.Margin = new Padding(4, 0, 4, 0);
+            InstructionsLabel.Name = "InstructionsLabel";
+            InstructionsLabel.Size = new Size(85, 16);
+            InstructionsLabel.TabIndex = 30;
+            InstructionsLabel.Text = "Input as X, Y, Z";
+            InstructionsLabel.Visible = false;
+            // 
+            // InputButton
+            // 
+            InputButton.Location = new Point(208, 134);
+            InputButton.Margin = new Padding(4);
+            InputButton.Name = "InputButton";
+            InputButton.Size = new Size(88, 28);
+            InputButton.TabIndex = 29;
+            InputButton.Text = "Input Offset";
+            InputButton.UseVisualStyleBackColor = true;
+            InputButton.Visible = false;
+            InputButton.Click += InputButton_Click;
+            // 
+            // CalculatedLabel
+            // 
+            CalculatedLabel.AutoSize = true;
+            CalculatedLabel.Location = new Point(14, 106);
+            CalculatedLabel.Margin = new Padding(4, 0, 4, 0);
+            CalculatedLabel.Name = "CalculatedLabel";
+            CalculatedLabel.Size = new Size(100, 16);
+            CalculatedLabel.TabIndex = 28;
+            CalculatedLabel.Text = "Calculated Offset:";
+            CalculatedLabel.Visible = false;
+            // 
+            // newLocLabel
+            // 
+            newLocLabel.AutoSize = true;
+            newLocLabel.Location = new Point(32, 74);
+            newLocLabel.Margin = new Padding(4, 0, 4, 0);
+            newLocLabel.Name = "newLocLabel";
+            newLocLabel.Size = new Size(83, 16);
+            newLocLabel.TabIndex = 27;
+            newLocLabel.Text = "New Location:";
+            newLocLabel.Visible = false;
+            // 
+            // OGLocLabel
+            // 
+            OGLocLabel.AutoSize = true;
+            OGLocLabel.Location = new Point(20, 42);
+            OGLocLabel.Margin = new Padding(4, 0, 4, 0);
+            OGLocLabel.Name = "OGLocLabel";
+            OGLocLabel.Size = new Size(101, 16);
+            OGLocLabel.TabIndex = 26;
+            OGLocLabel.Text = "Original Location:";
+            OGLocLabel.Visible = false;
+            // 
+            // newOffset
+            // 
+            newOffset.Location = new Point(127, 102);
+            newOffset.Margin = new Padding(4);
+            newOffset.Name = "newOffset";
+            newOffset.ReadOnly = true;
+            newOffset.Size = new Size(262, 23);
+            newOffset.TabIndex = 25;
+            newOffset.Visible = false;
+            // 
+            // vector2
+            // 
+            vector2.Location = new Point(127, 70);
+            vector2.Margin = new Padding(4);
+            vector2.Name = "vector2";
+            vector2.Size = new Size(262, 23);
+            vector2.TabIndex = 24;
+            vector2.Text = "0.0, 0.0, 0.0";
+            vector2.Visible = false;
+            // 
+            // vector1
+            // 
+            vector1.Location = new Point(127, 38);
+            vector1.Margin = new Padding(4);
+            vector1.Name = "vector1";
+            vector1.Size = new Size(262, 23);
+            vector1.TabIndex = 23;
+            vector1.Text = "0.0, 0.0, 0.0";
+            vector1.Visible = false;
+            // 
+            // CalculateButton
+            // 
+            CalculateButton.Location = new Point(18, 134);
+            CalculateButton.Margin = new Padding(4);
+            CalculateButton.Name = "CalculateButton";
+            CalculateButton.Size = new Size(88, 28);
+            CalculateButton.TabIndex = 22;
+            CalculateButton.Text = "Calculate";
+            CalculateButton.UseVisualStyleBackColor = true;
+            CalculateButton.Visible = false;
+            CalculateButton.Click += CalculateButton_Click;
+            // 
+            // vecDiffCloseButton
+            // 
+            vecDiffCloseButton.Location = new Point(167, 169);
+            vecDiffCloseButton.Name = "vecDiffCloseButton";
+            vecDiffCloseButton.Size = new Size(75, 23);
+            vecDiffCloseButton.TabIndex = 0;
+            vecDiffCloseButton.Text = "Close";
+            vecDiffCloseButton.UseVisualStyleBackColor = true;
+            vecDiffCloseButton.Visible = false;
+            vecDiffCloseButton.Click += VecDiffCloseButton_Click;
+            // 
             // MainForm
             // 
             AutoScaleDimensions = new SizeF(7F, 16F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1016, 522);
+            Controls.Add(vecDiffGroupBox);
             Controls.Add(howToUseGroupBox);
             Controls.Add(aboutGroupBox);
             Controls.Add(xMoveNumeric);
@@ -518,6 +688,8 @@
             ((System.ComponentModel.ISupportInitialize)xMoveNumeric).EndInit();
             aboutGroupBox.ResumeLayout(false);
             howToUseGroupBox.ResumeLayout(false);
+            vecDiffGroupBox.ResumeLayout(false);
+            vecDiffGroupBox.PerformLayout();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -560,7 +732,6 @@
         private ToolStripMenuItem clearAllYMAPsToolStripMenuItem;
         private ToolStripMenuItem clearAllYBNsToolStripMenuItem;
         private ToolStripSeparator toolStripSeparator4;
-        private ToolStripMenuItem calculateVectorDifferenceToolStripMenuItem;
         private OpenFileDialog openFileDialog1;
         private GroupBox aboutGroupBox;
         private Button closeAboutButton;
@@ -572,5 +743,19 @@
         private ToolStripMenuItem clearAllYDRsToolStripMenuItem;
         private ToolStripMenuItem clearAllYDDsToolStripMenuItem;
         private ToolStripMenuItem clearAllYFTsToolStripMenuItem;
+        private GroupBox vecDiffGroupBox;
+        private Button vecDiffCloseButton;
+        private Button CentreButton;
+        private Button InvertButton;
+        private Label InstructionsLabel;
+        private Button InputButton;
+        private Label CalculatedLabel;
+        private Label newLocLabel;
+        private Label OGLocLabel;
+        private TextBox newOffset;
+        private TextBox vector2;
+        private TextBox vector1;
+        private Button CalculateButton;
+        private ToolStripMenuItem calcVecDiffStripMenuItem;
     }
 }
