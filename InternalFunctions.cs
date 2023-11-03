@@ -84,7 +84,7 @@ namespace Internal_Functions
                         // Select all elements with 'Position' attribute
                         var positions = doc.SelectNodes("//Position");
 
-                        foreach (XmlNode position in positions)
+                        foreach (XmlNode position in positions) 
                         {
                             // Extract the 'x', 'y', and 'z' attributes
                             var xAttr = position.Attributes["x"]?.Value;
