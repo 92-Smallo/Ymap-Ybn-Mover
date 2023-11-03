@@ -285,6 +285,8 @@ namespace Ymap_Ybn_Mover
             {
                 Thread.CurrentThread.IsBackground = true;
                 Vector3 moveVector = new((float)xMoveNumeric.Value, (float)yMoveNumeric.Value, (float)zMoveNumeric.Value);
+                string offset = string.Format("{0},{1},{2}", moveVector.X, moveVector.Y, moveVector.Z);
+
 
                 foreach (ListViewItem item in items)
                 {
@@ -436,6 +438,20 @@ namespace Ymap_Ybn_Mover
                 processAllButton.Enabled = true;
                 processSelectedButton.Enabled = true;
                 stopButton.Enabled = false;
+
+                DialogResult result = MessageBox.Show("Do you want to use the same offset for Train/Car Nodes", "Process Complete", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+                if (result == DialogResult.Yes)
+                {
+                    Internal_Functions.OtherFunctions.SendToNodeMover(offset);
+                }
+                else
+                {
+                    
+                }
+
+                
+
             }).Start();
 
             stopButton.Click += (s, e) => { interrupt = true; };
