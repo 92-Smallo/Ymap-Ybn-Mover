@@ -1,5 +1,6 @@
 ﻿using SharpDX;
 using System.Xml;
+using CodeWalker.GameFiles;
 using Color = System.Drawing.Color;
 
 namespace Internal_Functions
@@ -73,8 +74,20 @@ namespace Internal_Functions
             {
                 var folderPath = "./Files"; // Change this to the folder containing your XML files
 
-                var files = Directory.GetFiles(folderPath, "*.xml");
+                var files = Directory.GetFiles(folderPath, "*.txt");
 
+                foreach (var filePath in files)
+                {
+                    if (Path.GetFileName(filePath) == "Instructions.txt")
+                    {
+                        File.Delete(filePath);
+                    }
+                }
+
+
+                files = Directory.GetFiles(folderPath, "*.xml");
+                
+                
                 foreach (var file in files)
                     try
                     {
@@ -123,7 +136,7 @@ namespace Internal_Functions
 
                 // Get a list of text files in the folder
                 files = Directory.GetFiles(folderPath, "*.txt");
-
+                
                 foreach (var filePath in files)
                 {
                     var lines = File.ReadAllLines(filePath);
