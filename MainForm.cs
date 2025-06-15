@@ -5,7 +5,6 @@ using Vector3 = SharpDX.Vector3;
 using Vector4 = SharpDX.Vector4;
 using Newtonsoft.Json.Linq;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
 
 namespace Ymap_Ybn_Mover
 {
@@ -13,43 +12,37 @@ namespace Ymap_Ybn_Mover
     {
         public DateTime timerTime = DateTime.Now;
         public bool interrupt = false;
+        public int totalFiles;
+        public int currentFile;
         private Vector3 offsetVec = new();
         private readonly List<Control> aboutControls = new();
         private readonly List<Control> howToControls = new();
         private readonly List<Control> vecDiffControls = new();
+        private CancellationTokenSource cts;
 
         public MainForm()
         {
             InitializeComponent();
+
+            typeof(ListView).InvokeMember("DoubleBuffered",
+        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.SetProperty,
+        null, mainList, new object[] { true });
+
+            typeof(StatusStrip).InvokeMember("DoubleBuffered",
+        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.SetProperty,
+        null, mainList, new object[] { true });
+
             CheckForIllegalCrossThreadCalls = false;
             int mainListWidth = mainList.Width / 100;
             mainList.Columns[0].Width = mainListWidth * 20;
             mainList.Columns[1].Width = mainListWidth * 68;
-            mainList.Columns[2].Width = mainListWidth * 10;
-            mainList.Columns[3].Width = mainListWidth * 10;
+            mainList.Columns[2].Width = mainListWidth * 20;
             CheckForUpdate();
 
-            aboutControls.Add(aboutGroupBox);
-            aboutControls.Add(aboutRichTextBox);
-            aboutControls.Add(closeAboutButton);
-
-            howToControls.Add(howToUseCloseButton);
-            howToControls.Add(howToUseGroupBox);
-            howToControls.Add(howToUseRichTextBox);
-
-            vecDiffControls.Add(vecDiffGroupBox);
-            vecDiffControls.Add(vecDiffCloseButton);
-            vecDiffControls.Add(CalculateButton);
-            vecDiffControls.Add(CentreButton);
-            vecDiffControls.Add(InputButton);
-            vecDiffControls.Add(InvertButton);
-            vecDiffControls.Add(newOffset);
-            vecDiffControls.Add(vector1);
-            vecDiffControls.Add(vector2);
-            vecDiffControls.Add(CalculatedLabel);
-            vecDiffControls.Add(OGLocLabel);
-            vecDiffControls.Add(newLocLabel);
-            vecDiffControls.Add(InstructionsLabel);
+            aboutControls.AddRange(new List<Control>() { aboutGroupBox, aboutRichTextBox, closeAboutButton });
+            howToControls.AddRange(new List<Control>() { howToUseCloseButton, howToUseGroupBox, howToUseRichTextBox });
+            vecDiffControls.AddRange(new List<Control>() { vecDiffGroupBox, vecDiffCloseButton, CalculateButton, CentreButton, InputButton, InvertButton,
+                                                         newOffset, vector1, vector2, CalculatedLabel, OGLocLabel, newLocLabel, InstructionsLabel });
         }
 
         private static void CheckForUpdate(bool manualCheck = false)
@@ -72,11 +65,7 @@ namespace Ymap_Ybn_Mover
 
                     if (latestVersion != localVersion)
                     {
-                        DialogResult result = MessageBox.Show(
-                            $"A newer version ({latestVersion}) is available. Do you want to download it?\n\nChanges:\n{release.body}",
-                            "Update Available",
-                            MessageBoxButtons.YesNo,
-                            MessageBoxIcon.Information);
+                        DialogResult result = MessageBox.Show($"A newer version ({latestVersion}) is available. Do you want to download it?\n\nChanges:\n{release.body}", "Update Available", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
 
                         if (result == DialogResult.Yes)
                         {
@@ -100,38 +89,60 @@ namespace Ymap_Ybn_Mover
 
         private void AddFiles(string[] fileList)
         {
-            IDictionary<string, string> fileTypes = new Dictionary<string, string>() { { "YMAP Files", ".ymap" }, { "YBN Files", ".ybn" }, { "YDR Files", ".ydr" }, { "YDD Files", ".ydd" }, { "YFT Files", ".yft" } };
+            var fileTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                { ".ymap", "YMAP Files" },
+                { ".ybn", "YBN Files" },
+                { ".ydr", "YDR Files" },
+                { ".ydd", "YDD Files" },
+                { ".yft", "YFT Files" }
+            };
+
+            var groupLookup = mainList.Groups.Cast<ListViewGroup>().ToDictionary(g => g.Header, g => g);
+
+            var itemsToAdd = new List<ListViewItem>();
+
             mainList.BeginUpdate();
             foreach (string file in fileList)
             {
-                foreach (ListViewGroup group in mainList.Groups)
+                string extension = Path.GetExtension(file);
+
+                if (fileTypes.TryGetValue(extension, out string groupName))
                 {
-                    foreach (KeyValuePair<string, string> fileType in fileTypes)
+                    if (groupLookup.TryGetValue(groupName, out ListViewGroup group))
                     {
-                        if (group.Header == fileType.Key && file.EndsWith(fileType.Value))
+                        if (!StringFunctions.DoesEntryExist(file, mainList))
                         {
-                            if (!StringFunctions.DoesEntryExist(file, mainList))
-                            {
-                                CreateListEntry(fileType.Value, file, group);
-                                break;
-                            }
+                            var item = CreateListEntry(extension, file, group);
+                            itemsToAdd.Add(item);
                         }
                     }
                 }
             }
+
+            mainList.Items.AddRange(itemsToAdd.ToArray());
             mainList.EndUpdate();
         }
 
-        private void CreateListEntry(string fileType, string file, ListViewGroup group)
+
+        private ListViewItem CreateListEntry(string fileType, string file, ListViewGroup group)
         {
-            long fileSize = new FileInfo(file).Length;
-            ListViewItem tempViewItem = new(file, 0, group) { Text = Path.GetFileName(file).Replace(fileType, "") };
-            tempViewItem.SubItems.Add(file);
-            tempViewItem.SubItems.Add((fileSize / 1000).ToString() + " KB");
-            tempViewItem.SubItems.Add(new ListViewItem.ListViewSubItem(tempViewItem, "Waiting", Color.Blue, mainList.BackColor, new Font(Font, FontStyle.Bold)));
-            tempViewItem.UseItemStyleForSubItems = false;
-            mainList.Items.Add(tempViewItem);
+            long fileSize = 0;
+            try
+            {
+                fileSize = new FileInfo(file).Length;
+            }
+            catch (Exception) { }
+
+            var tempViewItem = new ListViewItem(Path.GetFileNameWithoutExtension(file), 0, group)
+            {
+                SubItems = { file, $"{fileSize / 1000} KB", new ListViewItem.ListViewSubItem() { Text = "Waiting", ForeColor = Color.Blue, Font = new Font(Font, FontStyle.Bold) } },
+                UseItemStyleForSubItems = false
+            };
+
+            return tempViewItem;
         }
+
 
         private void ExitToolStripMenuItem_Click(object sender, EventArgs e)
         {
@@ -193,16 +204,28 @@ namespace Ymap_Ybn_Mover
                 AddFiles(openFileDialog1.FileNames);
         }
 
-        private void AddFolderToolStripMenuItem_Click(object sender, EventArgs e)
+        private async void AddFolderToolStripMenuItem_Click(object sender, EventArgs e)
         {
             if (mainFolderDialog.ShowDialog(this) == DialogResult.OK)
             {
+                timeElapsedLabel.Text = "";
+                HashSet<string> fileExtensions = new(StringComparer.OrdinalIgnoreCase) { ".ymap", ".ybn", ".ydr", ".ydd", ".yft" };
                 var options = new EnumerationOptions() { IgnoreInaccessible = true, RecurseSubdirectories = true };
                 List<string> files = new();
-                List<string> fileTypes = new() { "*.ymap", "*.ybn", "*.ydr", "*.ydd", "*.yft" };
 
-                foreach (string fileType in fileTypes)
-                    files.AddRange(Directory.GetFiles(mainFolderDialog.SelectedPath, fileType, options));
+                await Task.Run(() =>
+                {
+                    Parallel.ForEach(Directory.EnumerateFiles(mainFolderDialog.SelectedPath, "*", options), file =>
+                    {
+                        if (fileExtensions.Contains(Path.GetExtension(file)))
+                        {
+                            lock (files)
+                            {
+                                files.Add(file);
+                            }
+                        }
+                    });
+                });
 
                 if (files.Count == 0)
                 {
@@ -213,6 +236,7 @@ namespace Ymap_Ybn_Mover
                 AddFiles(files.ToArray());
             }
         }
+
 
         private void MainListDragEnter(object sender, DragEventArgs e)
         {
@@ -227,14 +251,19 @@ namespace Ymap_Ybn_Mover
 
         private void MainListDragDrop(object sender, DragEventArgs e)
         {
+            List<string> fileTypes = new() { ".ymap", ".ybn", ".ydr", ".ydd", ".yft" };
             string[]? files = e.Data?.GetData(DataFormats.FileDrop) as string[];
             List<string> allFiles = new();
 
             for (int i = 0; i < files?.Length; i++)
             {
                 string file = files[i];
-                if (file.EndsWith(".ybn") || file.EndsWith(".ymap"))
-                    allFiles.Add(file);
+                foreach (string fileType in fileTypes)
+                {
+                    if (file.EndsWith(fileType))
+                        allFiles.Add(file);
+                }
+
             }
 
             AddFiles(allFiles.ToArray());
@@ -242,17 +271,21 @@ namespace Ymap_Ybn_Mover
 
         private void ClearFilesToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            foreach (ListViewItem item in mainList.Items)
-                item.Remove();
+            mainList.BeginUpdate();
+            timeElapsedLabel.Text = "";
+            mainList.Items.Clear();
+            mainList.EndUpdate();
         }
 
         private void ClearSelectedFilesToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            mainList.BeginUpdate();
             foreach (ListViewItem item in mainList.Items)
             {
                 if (item.Selected)
                     item.Remove();
             }
+            mainList.EndUpdate();
         }
 
         private static void ToggleControlVisibility(List<Control> controls, bool visible)
@@ -267,221 +300,272 @@ namespace Ymap_Ybn_Mover
             TimeSpan t = TimeSpan.FromMilliseconds((currentTime - timerTime).TotalMilliseconds);
 
             if (interrupt)
-                timeElapsedLabel.Text = "Cancelling";
+            {
+                timeElapsedLabel.Text = string.Format("Stopped | Time Elapsed: {0:D2}m:{1:D2}s:{2:D3}ms | File {3} of {4}", t.Minutes, t.Seconds, t.Milliseconds, currentFile, totalFiles);
+            }
             else
-                timeElapsedLabel.Text = string.Format("Time Elapsed: {0:D2}m:{1:D2}s:{2:D3}ms", t.Minutes, t.Seconds, t.Milliseconds);
+            {
+                timeElapsedLabel.Text = string.Format("Time Elapsed: {0:D2}m:{1:D2}s:{2:D3}ms | File {3} of {4}", t.Minutes, t.Seconds, t.Milliseconds, currentFile, totalFiles);
+            }
         }
 
-        private void ProcessFiles(IEnumerable<ListViewItem> items)
+        private async void ProcessFiles(IEnumerable<ListViewItem> items)
         {
+            cts = new CancellationTokenSource();
+            int fileCount = 0;
             processAllButton.Enabled = false;
             processSelectedButton.Enabled = false;
             stopButton.Enabled = true;
-            interrupt = false;
             timerTime = DateTime.Now;
             System.Threading.Timer watch = new(TimerTick, null, 0, 10);
+            Vector3 moveVector = new((float)xMoveNumeric.Value, (float)yMoveNumeric.Value, (float)zMoveNumeric.Value);
+            var itemsList = items.ToList();
+            var tasks = new List<Task>();
+            totalFiles = itemsList.Count;
 
-            new Thread(() =>
+            try
             {
-                Thread.CurrentThread.IsBackground = true;
-                Vector3 moveVector = new((float)xMoveNumeric.Value, (float)yMoveNumeric.Value, (float)zMoveNumeric.Value);
-
-                foreach (ListViewItem item in items)
+                tasks = itemsList.Select(item => Task.Run(async () =>
                 {
-                    mainList.EnsureVisible(item.Index);
+                    fileCount++;
+                    currentFile = fileCount;
+
+                    if (cts.Token.IsCancellationRequested)
+                    {   
+                        watch.Dispose();
+                        return;
+                    }
+
+                    mainList.Invoke(() => mainList.EnsureVisible(item.Index));
+
                     string filename = item.SubItems[1].Text;
-                    StringFunctions.UpdateStatus("Processing", mainList, item, Color.Orange);
 
-                    if (filename.EndsWith(".ymap"))
+                    try
                     {
-                        YmapFile ymap = new();
-                        byte[] oldData;
-                        oldData = File.ReadAllBytes(filename);
-
-                        try
+                        if (filename.EndsWith(".ymap"))
                         {
-                            ymap.Load(oldData);
-                            if (ymap.AllEntities != null)
-                            {
-                                foreach (YmapEntityDef yEnts in ymap.AllEntities)
-                                    yEnts.SetPosition(yEnts.Position + moveVector);
-                            }
-
-                            if (ymap.CarGenerators != null)
-                            {
-                                foreach (YmapCarGen yEnts in ymap.CarGenerators)
-                                    yEnts.SetPosition(yEnts.Position + moveVector);
-                            }
-                            if (ymap.DistantLODLights != null)
-                            {
-                                int lightCount = ymap._CMapData.DistantLODLightsSOA.position.Count1;
-                                for (int i = 0; i < lightCount; i++)
-                                {
-                                    Vector3 vector3 = ymap.DistantLODLights.positions[i].ToVector3() + moveVector;
-                                    MetaVECTOR3 metaVec = new() { x = vector3.X, y = vector3.Y, z = vector3.Z };
-                                    ymap.DistantLODLights.positions[i] = metaVec;
-                                }
-                            }
-                            if (ymap.GrassInstanceBatches != null)
-                            {
-                                foreach (YmapGrassInstanceBatch yEnts in ymap.GrassInstanceBatches)
-                                {
-                                    yEnts.Position += moveVector;
-                                    yEnts.AABBMin += moveVector;
-                                    yEnts.AABBMax += moveVector;
-                                }
-                            }
-
-                            ymap._CMapData.streamingExtentsMax += moveVector;
-                            ymap._CMapData.streamingExtentsMin += moveVector;
-                            ymap._CMapData.entitiesExtentsMax += moveVector;
-                            ymap._CMapData.entitiesExtentsMin += moveVector;
-
-                            byte[] newData = ymap.Save();
-                            File.WriteAllBytes(filename, newData);
+                            await ProcessYmapFileAsync(filename, moveVector, item);
                         }
-                        catch (Exception)
+                        else if (filename.EndsWith(".ybn"))
                         {
-                            StringFunctions.UpdateStatus("Error", mainList, item, Color.Red);
+                            await ProcessYbnFileAsync(filename, moveVector, item);
+                        }
+                        else if (filename.EndsWith(".ydr") || filename.EndsWith(".ydd") || filename.EndsWith(".yft"))
+                        {
+                            await ProcessGenericFileAsync(filename, item);
                         }
 
-                        StringFunctions.UpdateStatus("Complete", mainList, item, Color.Green);
+                        item.Selected = false;
                     }
-
-                    if (filename.EndsWith(".ybn"))
+                    catch (Exception ex)
                     {
-                        StringFunctions.UpdateStatus("File Loaded", mainList, item, Color.Red);
-
-                        YbnFile ybn = new();
-                        byte[] oldData;
-                        oldData = File.ReadAllBytes(filename);
-
-                        try
-                        {
-                            ybn.Load(oldData);
-
-                            if (ybn.Bounds != null)
-                            {
-                                ybn.Bounds.BoxCenter += moveVector;
-                                ybn.Bounds.BoxMax += moveVector;
-                                ybn.Bounds.BoxMin += moveVector;
-                                ybn.Bounds.SphereCenter += moveVector;
-
-                                BoundComposite? boundcomp = ybn.Bounds as BoundComposite;
-                                var compchilds = boundcomp?.Children?.data_items;
-                                if (boundcomp?.BVH != null)
-                                {
-                                    Vector3 boundcompBBC = MathFunctions.ConvertToVec3(boundcomp.BVH.BoundingBoxCenter);
-                                    Vector3 boundcompBBMax = MathFunctions.ConvertToVec3(boundcomp.BVH.BoundingBoxMax);
-                                    Vector3 boundcompBBMin = MathFunctions.ConvertToVec3(boundcomp.BVH.BoundingBoxMin);
-                                    boundcomp.BVH.BoundingBoxCenter = new Vector4(boundcompBBC + moveVector, boundcomp.BVH.BoundingBoxCenter.W);
-                                    boundcomp.BVH.BoundingBoxMax = new Vector4(boundcompBBMax + moveVector, boundcomp.BVH.BoundingBoxMax.W);
-                                    boundcomp.BVH.BoundingBoxMin = new Vector4(boundcompBBMin + moveVector, boundcomp.BVH.BoundingBoxMin.W);
-                                }
-                                if (compchilds != null)
-                                {
-                                    for (int i = 0; i < compchilds.Length; i++)
-                                    {
-                                        compchilds[i].BoxCenter += moveVector;
-                                        compchilds[i].BoxMax += moveVector;
-                                        compchilds[i].BoxMin += moveVector;
-                                        compchilds[i].SphereCenter += moveVector;
-                                        if (compchilds[i] is BoundBVH bgeom)
-                                        {
-                                            if (bgeom.BVH != null)
-                                            {
-                                                Vector3 bgeomBBC = MathFunctions.ConvertToVec3(bgeom.BVH.BoundingBoxCenter);
-                                                Vector3 bgeomBBMax = MathFunctions.ConvertToVec3(bgeom.BVH.BoundingBoxMax);
-                                                Vector3 bgeomBBMin = MathFunctions.ConvertToVec3(bgeom.BVH.BoundingBoxMin);
-                                                bgeom.BVH.BoundingBoxCenter = new Vector4(bgeomBBC + moveVector, bgeom.BVH.BoundingBoxCenter.W);
-                                                bgeom.BVH.BoundingBoxMax = new Vector4(bgeomBBMax + moveVector, bgeom.BVH.BoundingBoxMax.W);
-                                                bgeom.BVH.BoundingBoxMin = new Vector4(bgeomBBMin + moveVector, bgeom.BVH.BoundingBoxMin.W);
-                                            }
-                                            bgeom.CenterGeom += moveVector;
-                                        }
-                                    }
-                                }
-                            }
-                            byte[] newData = ybn.Save();
-                            File.WriteAllBytes(filename, newData);
-                        }
-                        catch (Exception)
-                        {
-                            StringFunctions.UpdateStatus("Error", mainList, item, Color.Red);
-                        }
-
-                        StringFunctions.UpdateStatus("Complete", mainList, item, Color.Green);
+                        UpdateListViewItem(item, Color.Red, $"Error: {ex.Message}");
+                        return;
                     }
+                })).ToList();
+            }
+            finally
+            {
+                await Task.WhenAll(tasks);
 
-                    if (filename.EndsWith(".ydr"))
-                        RunPolyEdge(item, filename, "ydr");
-
-                    if (filename.EndsWith(".yft"))
-                        RunPolyEdge(item, filename, "yft");
-
-                    if (filename.EndsWith(".ydd"))
-                        RunPolyEdge(item, filename, "ydd");
-
-                    if (interrupt)
-                    {
-                        StringFunctions.UpdateStatus("Cancelled", mainList, item, Color.Red);
-                        processAllButton.Enabled = true;
-                        processSelectedButton.Enabled = true;
-                        stopButton.Enabled = false;
-                        timeElapsedLabel.Text = "";
-                        break;
-                    }
-                }
                 watch.Dispose();
                 processAllButton.Enabled = true;
                 processSelectedButton.Enabled = true;
                 stopButton.Enabled = false;
-            }).Start();
-
-            stopButton.Click += (s, e) => { interrupt = true; };
+            }
         }
 
-        private void RunPolyEdge(ListViewItem item, string filename, string filetype)
+        private async Task ProcessYmapFileAsync(string filename, Vector3 moveVector, ListViewItem item)
         {
-            YdrFile ydr = new();
-            YddFile ydd = new();
-            YftFile yft = new();
-            byte[] oldData;
-            byte[] newData;
-
-            StringFunctions.UpdateStatus("File Loaded", mainList, item, Color.Red);
-
             try
             {
-                oldData = File.ReadAllBytes(filename);
+                byte[] oldData = await File.ReadAllBytesAsync(filename);
+                var ymap = new YmapFile();
+                ymap.Load(oldData);
 
-                if (filetype == "ydr")
+                if (ymap.AllEntities != null)
                 {
+                    foreach (YmapEntityDef yEnts in ymap.AllEntities)
+                        yEnts.SetPosition(yEnts.Position + moveVector);
+                }
+
+                if (ymap.AllEntities != null)
+                {
+                    foreach (YmapEntityDef yEnts in ymap.AllEntities)
+                        yEnts.SetPosition(yEnts.Position + moveVector);
+                }
+
+                if (ymap.CarGenerators != null)
+                {
+                    foreach (YmapCarGen yEnts in ymap.CarGenerators)
+                        yEnts.SetPosition(yEnts.Position + moveVector);
+                }
+
+                if (ymap.DistantLODLights != null)
+                {
+                    int lightCount = ymap._CMapData.DistantLODLightsSOA.position.Count1;
+                    for (int i = 0; i < lightCount; i++)
+                    {
+                        Vector3 vector3 = ymap.DistantLODLights.positions[i].ToVector3() + moveVector;
+                        MetaVECTOR3 metaVec = new() { x = vector3.X, y = vector3.Y, z = vector3.Z };
+                        ymap.DistantLODLights.positions[i] = metaVec;
+                    }
+                }
+
+                if (ymap.GrassInstanceBatches != null)
+                {
+                    foreach (YmapGrassInstanceBatch yEnts in ymap.GrassInstanceBatches)
+                    {
+                        yEnts.Position += moveVector;
+                        yEnts.AABBMin += moveVector;
+                        yEnts.AABBMax += moveVector;
+                    }
+                }
+
+                ymap._CMapData.streamingExtentsMax += moveVector;
+                ymap._CMapData.streamingExtentsMin += moveVector;
+                ymap._CMapData.entitiesExtentsMax += moveVector;
+                ymap._CMapData.entitiesExtentsMin += moveVector;
+
+                byte[] newData = ymap.Save();
+                await File.WriteAllBytesAsync(filename, newData);
+                UpdateListViewItem(item, Color.Green);
+            }
+            catch (Exception ex)
+            {
+                UpdateListViewItem(item, Color.Red, $"Error: {ex.Message}");
+            }
+        }
+
+        private async Task ProcessYbnFileAsync(string filename, Vector3 moveVector, ListViewItem item)
+        {
+            try
+            {
+                byte[] oldData = await File.ReadAllBytesAsync(filename);
+                var ybn = new YbnFile();
+                ybn.Load(oldData);
+
+                if (ybn.Bounds == null)
+                {
+                    UpdateListViewItem(item, Color.Red, "Error: Bounds or BoundsData is null.");
+                    return;
+                }
+
+                ybn.Bounds.BoxCenter += moveVector;
+                ybn.Bounds.BoxMax += moveVector;
+                ybn.Bounds.BoxMin += moveVector;
+                ybn.Bounds.SphereCenter += moveVector;
+
+                BoundComposite? boundcomp = ybn.Bounds as BoundComposite;
+                var compchilds = boundcomp?.Children?.data_items;
+
+                if (boundcomp?.BVH != null)
+                {
+                    Vector3 boundcompBBC = MathFunctions.ConvertToVec3(boundcomp.BVH.BoundingBoxCenter);
+                    Vector3 boundcompBBMax = MathFunctions.ConvertToVec3(boundcomp.BVH.BoundingBoxMax);
+                    Vector3 boundcompBBMin = MathFunctions.ConvertToVec3(boundcomp.BVH.BoundingBoxMin);
+                    boundcomp.BVH.BoundingBoxCenter = new Vector4(boundcompBBC + moveVector, boundcomp.BVH.BoundingBoxCenter.W);
+                    boundcomp.BVH.BoundingBoxMax = new Vector4(boundcompBBMax + moveVector, boundcomp.BVH.BoundingBoxMax.W);
+                    boundcomp.BVH.BoundingBoxMin = new Vector4(boundcompBBMin + moveVector, boundcomp.BVH.BoundingBoxMin.W);
+                }
+
+                for (int i = 0; i < boundcomp?.ChildrenBoundingBoxes.Length; i++)
+                {
+                    Vector3 boundChildMin = MathFunctions.ConvertToVec3(boundcomp.ChildrenBoundingBoxes[i].Min);
+                    Vector3 boundChildMax = MathFunctions.ConvertToVec3(boundcomp.ChildrenBoundingBoxes[i].Max);
+                    boundcomp.ChildrenBoundingBoxes[i].Min = new Vector4(boundChildMin + moveVector, boundcomp.ChildrenBoundingBoxes[i].Min.W);
+                    boundcomp.ChildrenBoundingBoxes[i].Max = new Vector4(boundChildMax + moveVector, boundcomp.ChildrenBoundingBoxes[i].Max.W);
+                }
+
+                if (compchilds != null)
+                {
+                    for (int i = 0; i < compchilds.Length; i++)
+                    {
+                        compchilds[i].BoxCenter += moveVector;
+                        compchilds[i].BoxMax += moveVector;
+                        compchilds[i].BoxMin += moveVector;
+                        compchilds[i].SphereCenter += moveVector;
+                        if (compchilds[i] is BoundBVH bgeom)
+                        {
+                            if (bgeom.BVH != null)
+                            {
+                                Vector3 bgeomBBC = MathFunctions.ConvertToVec3(bgeom.BVH.BoundingBoxCenter);
+                                Vector3 bgeomBBMax = MathFunctions.ConvertToVec3(bgeom.BVH.BoundingBoxMax);
+                                Vector3 bgeomBBMin = MathFunctions.ConvertToVec3(bgeom.BVH.BoundingBoxMin);
+                                bgeom.BVH.BoundingBoxCenter = new Vector4(bgeomBBC + moveVector, bgeom.BVH.BoundingBoxCenter.W);
+                                bgeom.BVH.BoundingBoxMax = new Vector4(bgeomBBMax + moveVector, bgeom.BVH.BoundingBoxMax.W);
+                                bgeom.BVH.BoundingBoxMin = new Vector4(bgeomBBMin + moveVector, bgeom.BVH.BoundingBoxMin.W);
+                            }
+                            bgeom.CenterGeom += moveVector;
+                        }
+                    }
+                }
+
+                byte[] newData = ybn.Save();
+                await File.WriteAllBytesAsync(filename, newData);
+                UpdateListViewItem(item, Color.Green);
+            }
+            catch (Exception ex)
+            {
+                UpdateListViewItem(item, Color.Red, $"Error: {ex.Message}");
+            }
+        }
+
+        private async Task ProcessGenericFileAsync(string filename, ListViewItem item)
+        {
+            try
+            {
+                byte[] oldData = await File.ReadAllBytesAsync(filename);
+                byte[] newData;
+
+                if (filename.EndsWith(".ydr"))
+                {
+                    var ydr = new YdrFile();
                     RpfFile.LoadResourceFile(ydr, oldData, 165);
                     newData = ydr.Save();
-                    File.WriteAllBytes(filename, newData);
-                }
 
-                if (filetype == "ydd")
+                }
+                else if (filename.EndsWith(".ydd"))
                 {
+                    var ydd = new YddFile();
                     RpfFile.LoadResourceFile(ydd, oldData, 165);
                     newData = ydd.Save();
-                    File.WriteAllBytes(filename, newData);
                 }
-
-                if (filetype == "yft")
+                else
                 {
+                    var yft = new YftFile();
                     RpfFile.LoadResourceFile(yft, oldData, 162);
                     newData = yft.Save();
-                    File.WriteAllBytes(filename, newData);
                 }
-            }
-            catch (Exception)
-            {
-                StringFunctions.UpdateStatus("Error", mainList, item, Color.Red);
-            }
 
-            StringFunctions.UpdateStatus("Complete", mainList, item, Color.Green);
+                await File.WriteAllBytesAsync(filename, newData);
+
+                UpdateListViewItem(item, Color.Green);
+            }
+            catch (Exception ex)
+            {
+                UpdateListViewItem(item, Color.Red, $"Error: {ex.Message}");
+            }
+        }
+
+        private void UpdateListViewItem(ListViewItem item, Color color, string toolTipText = "")
+        {
+            mainList.BeginUpdate();
+            try
+            {
+                item.ForeColor = color;
+                item.ToolTipText = toolTipText;
+            }
+            finally
+            {
+                mainList.EndUpdate();
+            }
+        }
+
+        private void stopButton_Click(object sender, EventArgs e)
+        {
+            interrupt = true;
+            cts?.Cancel();
         }
 
         private void ProcessAllButton_Click(object sender, EventArgs e) => ProcessFiles(mainList.Items.OfType<ListViewItem>());
@@ -489,11 +573,11 @@ namespace Ymap_Ybn_Mover
         private void AddFilesToolStripMenuItem_Click(object sender, EventArgs e) => mainFileDialog.ShowDialog();
         private void OpenFileDialog1_FileOk(object sender, EventArgs e) => AddFiles(mainFileDialog.FileNames);
         private void InvertButton_Click(object sender, EventArgs e) => (vector2.Text, vector1.Text) = (vector1.Text, vector2.Text);
-        private void ClearAllYMAPsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".ymap");
-        private void ClearAllYBNsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".ybn");
-        private void ClearAllYDRsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".ydr");
-        private void ClearAllYDDsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".ydd");
-        private void ClearAllYFTsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList.Items.OfType<ListViewItem>(), ".yft");
+        private void ClearAllYMAPsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList, "ymapGroup");
+        private void ClearAllYBNsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList, "ybnGroup");
+        private void ClearAllYDRsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList, "ydrGroup");
+        private void ClearAllYDDsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList, "yddGroup");
+        private void ClearAllYFTsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList, "yftGroup");
         private void CheckForUpdateToolStripMenuItem_Click(object sender, EventArgs e) => CheckForUpdate(true);
         private void AboutToolStripMenuItem_Click(object sender, EventArgs e) => ToggleControlVisibility(aboutControls, true);
         private void CloseAboutButton_Click(object sender, EventArgs e) => ToggleControlVisibility(aboutControls, false);

@@ -28,11 +28,12 @@
         /// </summary>
         private void InitializeComponent()
         {
-            ListViewGroup listViewGroup6 = new ListViewGroup("YMAP Files", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup7 = new ListViewGroup("YBN Files", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup8 = new ListViewGroup("YFT Files", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup9 = new ListViewGroup("YDD Files", HorizontalAlignment.Left);
-            ListViewGroup listViewGroup10 = new ListViewGroup("YDR Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup1 = new ListViewGroup("YMAP Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup2 = new ListViewGroup("YBN Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup3 = new ListViewGroup("YFT Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup4 = new ListViewGroup("YDD Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup5 = new ListViewGroup("YDR Files", HorizontalAlignment.Left);
+            ListViewGroup listViewGroup6 = new ListViewGroup("YND Files", HorizontalAlignment.Left);
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             mainMenuStrip = new MenuStrip();
             fileToolStripMenuItem = new ToolStripMenuItem();
@@ -58,11 +59,11 @@
             aboutToolStripMenuItem = new ToolStripMenuItem();
             mainStatusStrip = new StatusStrip();
             timeElapsedLabel = new ToolStripStatusLabel();
+            toolStripStatusPipe = new ToolStripStatusLabel();
             mainList = new ListView();
             filenameHeader = new ColumnHeader();
             fileLocationHeader = new ColumnHeader();
             filesizeHeader = new ColumnHeader();
-            processedHeader = new ColumnHeader();
             mainFileDialog = new OpenFileDialog();
             button2 = new Button();
             processAllButton = new Button();
@@ -255,7 +256,7 @@
             // 
             // mainStatusStrip
             // 
-            mainStatusStrip.Items.AddRange(new ToolStripItem[] { timeElapsedLabel });
+            mainStatusStrip.Items.AddRange(new ToolStripItem[] { timeElapsedLabel, toolStripStatusPipe });
             mainStatusStrip.Location = new Point(0, 500);
             mainStatusStrip.Name = "mainStatusStrip";
             mainStatusStrip.Size = new Size(1016, 22);
@@ -267,24 +268,32 @@
             timeElapsedLabel.Name = "timeElapsedLabel";
             timeElapsedLabel.Size = new Size(0, 17);
             // 
+            // toolStripStatusPipe
+            // 
+            toolStripStatusPipe.Name = "toolStripStatusPipe";
+            toolStripStatusPipe.Size = new Size(0, 17);
+            // 
             // mainList
             // 
             mainList.AllowDrop = true;
-            mainList.Columns.AddRange(new ColumnHeader[] { filenameHeader, fileLocationHeader, filesizeHeader, processedHeader });
-            listViewGroup6.Header = "YMAP Files";
-            listViewGroup6.Name = "ymapGroup";
-            listViewGroup7.Header = "YBN Files";
-            listViewGroup7.Name = "ybnGroup";
-            listViewGroup8.Header = "YFT Files";
-            listViewGroup8.Name = "yftGroup";
-            listViewGroup9.Header = "YDD Files";
-            listViewGroup9.Name = "yddGroup";
-            listViewGroup10.Header = "YDR Files";
-            listViewGroup10.Name = "ydrGroup";
-            mainList.Groups.AddRange(new ListViewGroup[] { listViewGroup6, listViewGroup7, listViewGroup8, listViewGroup9, listViewGroup10 });
+            mainList.Columns.AddRange(new ColumnHeader[] { filenameHeader, fileLocationHeader, filesizeHeader });
+            listViewGroup1.Header = "YMAP Files";
+            listViewGroup1.Name = "ymapGroup";
+            listViewGroup2.Header = "YBN Files";
+            listViewGroup2.Name = "ybnGroup";
+            listViewGroup3.Header = "YFT Files";
+            listViewGroup3.Name = "yftGroup";
+            listViewGroup4.Header = "YDD Files";
+            listViewGroup4.Name = "yddGroup";
+            listViewGroup5.Header = "YDR Files";
+            listViewGroup5.Name = "ydrGroup";
+            listViewGroup6.Header = "YND Files";
+            listViewGroup6.Name = "yndGroup";
+            mainList.Groups.AddRange(new ListViewGroup[] { listViewGroup1, listViewGroup2, listViewGroup3, listViewGroup4, listViewGroup5, listViewGroup6 });
             mainList.HeaderStyle = ColumnHeaderStyle.Nonclickable;
             mainList.Location = new Point(12, 27);
             mainList.Name = "mainList";
+            mainList.ShowItemToolTips = true;
             mainList.Size = new Size(992, 437);
             mainList.Sorting = SortOrder.Ascending;
             mainList.TabIndex = 3;
@@ -309,11 +318,6 @@
             filesizeHeader.DisplayIndex = 1;
             filesizeHeader.Text = "File Size";
             filesizeHeader.Width = 53;
-            // 
-            // processedHeader
-            // 
-            processedHeader.Text = "Status";
-            processedHeader.Width = 70;
             // 
             // mainFileDialog
             // 
@@ -368,6 +372,7 @@
             stopButton.TabIndex = 19;
             stopButton.Text = "Stop";
             stopButton.UseVisualStyleBackColor = true;
+            stopButton.Click += stopButton_Click;
             // 
             // zMoveNumeric
             // 
@@ -422,7 +427,7 @@
             // openFileDialog1
             // 
             openFileDialog1.FileName = "openFileDialog1";
-            openFileDialog1.Filter = "All Types|*.ybn;*.ymap;*.ydr;*.ydd;*.yft;\" + \"|YBN Files|*.ybn|YMAP Files|*.ymap|YDR Files|*.ydr|YDD Files|*.ydd|YFT Files|*.yft";
+            openFileDialog1.Filter = "All Types|*.ybn;*.ymap;*.ydr;*.ydd;*.yft;|YBN Files|*.ybn|YMAP Files|*.ymap|YDR Files|*.ydr|YDD Files|*.ydd|YFT Files|*.yft";
             openFileDialog1.Multiselect = true;
             // 
             // aboutGroupBox
@@ -706,7 +711,6 @@
         private ColumnHeader filenameHeader;
         private ColumnHeader filesizeHeader;
         private ColumnHeader fileLocationHeader;
-        private ColumnHeader processedHeader;
         private Button button2;
         private Button processAllButton;
         private Button processSelectedButton;
@@ -757,5 +761,6 @@
         private TextBox vector1;
         private Button CalculateButton;
         private ToolStripMenuItem calcVecDiffStripMenuItem;
+        private ToolStripStatusLabel toolStripStatusPipe;
     }
 }
