@@ -8,11 +8,11 @@ Download the [latest release](https://github.com/92-Smallo/Ymap-Ybn-Mover/releas
 
 1. Add your YMAP and YBN files, or add a folder recursively.
 2. Enter the move offset X, Y, Z.
-3. For rotation, enter **Rotate Z (degrees)** and a **shared pivot X, Y, Z**. Positive angles rotate counterclockwise viewed from above: +X turns toward +Y. Select your YMAPs and choose **Use map centre** to calculate a pivot from their combined entity extents.
-4. Apply exactly the same pivot, angle and offset to every YMAP/YBN belonging to that location.
+3. Enter **Z (degrees)** in the Rotation group. Positive angles rotate counterclockwise viewed from above: +X turns toward +Y. Rotation uses the world's Z axis at X=0, Y=0 and preserves height.
+4. Apply exactly the same angle and offset to every YMAP/YBN belonging to that location.
 5. Choose **Process All** or **Process Selected**.
 
-The transformation is `newPosition = pivot + Rz(angle) * (position - pivot) + offset`: rotate first, then translate. For example, rotating `(12, 20, 3)` by +90 degrees around `(10, 20, 3)` gives `(10, 22, 3)` before the move offset is added.
+The transformation is `newPosition = Rz(angle) * position + offset`: rotate around the world origin first, then translate. For example, rotating `(12, 20, 3)` by +90 degrees gives `(-20, 12, 3)` before the move offset is added. There are no pivot inputs.
 
 Collision shapes retain their local geometry. The tool changes composite child transforms and rebuilds their lookup data through CodeWalker, including meshes, primitive bounds, existing transformed children and nested composites. A standalone collision root is wrapped in a composite so its placement can be stored in the game format.
 

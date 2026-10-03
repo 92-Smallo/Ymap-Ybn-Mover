@@ -8,7 +8,8 @@ Reviewed 3 October 2026. This review uses the installed CodeWalker.Core build an
 | --- | --- |
 | YMAP entities were translated twice | Removed the duplicate loop; translation is applied once through one transform service. |
 | YBN movement edited local child bounds and centers as world coordinates | Apply placement through child matrices. Keep vertices, geometry centers, primitive dimensions and nested relative transforms in local coordinates. |
-| Unfinished rotation mixed world placement with shape geometry | Added Z rotation around a shared pivot, explicit rotate-then-move order, entity orientations and car headings, and eight-corner bounding-box transforms. |
+| Unfinished rotation mixed world placement with shape geometry | Added Z rotation around the world origin, explicit rotate-then-move order, entity orientations and car headings, and eight-corner bounding-box transforms. |
+| Fixed footer coordinates and mixed fonts caused crowding at larger display scales | Group move offsets and Z rotation in measured table layouts, separate the action row, remove pivot inputs, and allow window resizing. |
 | CodeWalker geometry BVH rebuild used editor-transformed polygon positions | Added `LocalSpaceBoundBvh`: preserve resource fields and build/serialize the mesh BVH with an identity editor transform, then restore placement. Parent matrices remain serialized normally. This avoids corrupting local lookup data or vertex quantization. |
 | Standalone YBN roots had no persisted placement matrix | Wrap them in a composite and give the child a stored placement and collision-query filter. |
 | Loaded standalone YMAP LOD lights were cleared by CodeWalker.Save | Populate the editor light objects from all raw light arrays before saving; preserve metadata and rotate directions. Parent distant-light positions are not needed for serialization. |
@@ -29,13 +30,13 @@ The regression runner constructs synthetic resource files, serializes them throu
 
 The collision query test checks the persisted mesh in its local frame and checks the saved parent placement separately. CodeWalker's editor `GetVertexPos` also applies the editor transform while composite ray queries already inverse-transform the ray; calling its ordinary loaded-composite query directly would mix these frames. This test validates serialized geometry and BVH data without relying on that editor behavior.
 
-The form is rendered off-screen to inspect control placement; new controls are positioned relative to the already-scaled designer controls. This is not an interactive UI or game-runtime test.
+The form is rendered off-screen to inspect control placement. Measured table layouts are checked at the default size, minimum window size and a larger text size for clipping and overlap. This is not an interactive UI or game-runtime test.
 
 Tested dependency: CodeWalker.Core file version 1.0.0.0, SHA-256 `70A1A48E70941824DCD89A2431FEDD2A62B177717ED2BE676BBA8AF69BA55A38`. The dependency is supplied locally, not committed. These results are specific to that build; rerun regressions before upgrading it.
 
 ## Remaining work and recommendations
 
-1. **Validate representative maps in FiveM/GTA V before release.** No real map or collision fixtures were supplied. Confirm collision contact, raycasts, streaming, lighting, vegetation, MLO entry and car spawning after rotation. Include both positive and negative angles, a nonzero pivot and translated offsets. Synthetic serialization checks do not prove the game's physics behavior.
+1. **Validate representative maps in FiveM/GTA V before release.** No real map or collision fixtures were supplied. Confirm collision contact, raycasts, streaming, lighting, vegetation, MLO entry and car spawning after rotation. Include both positive and negative angles and translated offsets. Synthetic serialization checks do not prove the game's physics behavior.
 2. **Add legally shareable regression fixtures and pin CodeWalker by revision/build.** The upstream assembly version is not sufficient to identify API or serializer behavior. A reproducible dependency build would also allow meaningful GitHub Actions checks without relying on a developer's local DLL.
 3. **Keep legacy and Enhanced resource support explicit.** The existing resave path uses CodeWalker's legacy resource defaults. Enhanced/Gen9 conversion needs separate fixtures and format handling before it can be claimed as supported.
 4. **Extend map-family coverage as needed.** YTYP local archetype data, YNV navigation, YND road paths, YLD cloth and script coordinates are outside the supported input formats. An entire location may rely on those files even when its YMAP/YBN placement is correct. CodeWalker's cloth-bound handling is incomplete; the tool refuses YBN cloth bounds.

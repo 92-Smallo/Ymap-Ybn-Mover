@@ -2,33 +2,31 @@ using SharpDX;
 
 namespace Ymap_Ybn_Mover;
 
-/// <summary>A rigid world-space transform: rotate around a shared pivot, then translate.</summary>
+/// <summary>Rotate around the world's Z axis, then translate.</summary>
 public sealed class MapTransform
 {
     public Vector3 Offset { get; }
-    public Vector3 Pivot { get; }
     public Quaternion Rotation { get; }
     public Matrix Matrix { get; }
     public bool HasRotation { get; }
     public bool IsIdentity => !HasRotation && Offset == Vector3.Zero;
 
-    public MapTransform(Vector3 offset, Vector3 pivot, float degrees)
+    public MapTransform(Vector3 offset, float degrees)
     {
-        if (!IsFinite(offset) || !IsFinite(pivot) || !float.IsFinite(degrees))
-            throw new ArgumentException("Offset, pivot and rotation must be finite numbers.");
+        if (!IsFinite(offset) || !float.IsFinite(degrees))
+            throw new ArgumentException("Offset and rotation must be finite numbers.");
 
         Offset = offset;
-        Pivot = pivot;
         degrees %= 360;
         HasRotation = degrees != 0;
         Rotation = HasRotation ? Quaternion.RotationAxis(Vector3.UnitZ, MathUtil.DegreesToRadians(degrees)) : Quaternion.Identity;
         // SharpDX uses row vectors: local * existingTransform * worldTransform.
         Matrix = SharpDX.Matrix.RotationQuaternion(Rotation);
-        Matrix = SharpDX.Matrix.Translation(-pivot) * Matrix * SharpDX.Matrix.Translation(pivot + offset);
+        Matrix *= SharpDX.Matrix.Translation(offset);
     }
 
     public Vector3 Position(Vector3 position) => HasRotation
-        ? Vector3.TransformCoordinate(position - Pivot, SharpDX.Matrix.RotationQuaternion(Rotation)) + Pivot + Offset
+        ? Vector3.TransformCoordinate(position, SharpDX.Matrix.RotationQuaternion(Rotation)) + Offset
         : position + Offset;
 
     public Vector3 Direction(Vector3 direction) => HasRotation

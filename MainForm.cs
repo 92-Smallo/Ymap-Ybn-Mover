@@ -17,20 +17,20 @@ namespace Ymap_Ybn_Mover
         private CancellationTokenSource? cts;
         private bool closeAfterProcessing;
         private readonly NumericUpDown rotationNumeric = CoordinateInput(360, -360);
-        private readonly NumericUpDown pivotXNumeric = CoordinateInput();
-        private readonly NumericUpDown pivotYNumeric = CoordinateInput();
-        private readonly NumericUpDown pivotZNumeric = CoordinateInput();
+        private readonly TableLayoutPanel transformPanel = new() { Name = "transformPanel" };
         private readonly CheckBox backupCheckBox = new() { Text = "Keep backups", Checked = true, AutoSize = true };
+        private readonly Dictionary<GroupBox, Size> overlaySizes = new();
 
-        public MainForm()
+        public MainForm() : this(true) { }
+
+        public MainForm(bool checkForUpdates)
         {
+            Font = new Font("Segoe UI", 9f);
             InitializeComponent();
+            foreach (var group in new[] { aboutGroupBox, howToUseGroupBox, vecDiffGroupBox }) overlaySizes.Add(group, group.Size);
             typeof(ListView).InvokeMember("DoubleBuffered",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.SetProperty,
                 null, mainList, new object[] { true });
-            mainList.Columns[0].Width = 160;
-            mainList.Columns[1].Width = Math.Max(200, mainList.Width - 160 - 80 - 190 - 24);
-            mainList.Columns[2].Width = 80;
             mainList.Columns.Add("Status", 190);
             mainList.ShowItemToolTips = true;
             aboutControls.AddRange(new Control[] { aboutGroupBox, aboutRichTextBox, closeAboutButton });
@@ -38,7 +38,8 @@ namespace Ymap_Ybn_Mover
             vecDiffControls.AddRange(new Control[] { vecDiffGroupBox, vecDiffCloseButton, CalculateButton, CentreButton, InputButton, InvertButton,
                 newOffset, vector1, vector2, CalculatedLabel, OGLocLabel, newLocLabel, InstructionsLabel });
             ConfigureTransformControls();
-            Shown += async (_, _) => await CheckForUpdateAsync();
+            Resize += (_, _) => LayoutOverlays();
+            if (checkForUpdates) Shown += async (_, _) => await CheckForUpdateAsync();
             FormClosing += (_, e) =>
             {
                 if (cts == null) return;
@@ -56,45 +57,131 @@ namespace Ymap_Ybn_Mover
 
         private void ConfigureTransformControls()
         {
-            // InitializeComponent may scale the designer's coordinates for the current
-            // font/DPI. Place the new row relative to the already-scaled move controls.
-            int moveRow = processAllButton.Top;
-            mainList.Height = moveRow - mainList.Top - 50;
-            var panel = new FlowLayoutPanel
+            SuspendLayout();
+            FormBorderStyle = FormBorderStyle.Sizable;
+            MaximizeBox = true;
+            MinimumSize = new Size(820, 540);
+            ClientSize = new Size(1040, 620);
+            var layout = new TableLayoutPanel
             {
-                Name = "transformPanel", Location = new Point(mainList.Left, moveRow - 40),
-                Size = new Size(mainList.Width, 31), WrapContents = false
+                Name = "mainLayout", Dock = DockStyle.Fill, Padding = new Padding(12),
+                ColumnCount = 1, RowCount = 4
             };
-            void AddLabel(string text) => panel.Controls.Add(new Label { Text = text, AutoSize = true, Margin = new Padding(3, 5, 3, 0) });
-            AddLabel("Rotate Z (degrees):");
-            panel.Controls.Add(rotationNumeric);
-            AddLabel("Pivot X:");
-            panel.Controls.Add(pivotXNumeric);
-            AddLabel("Y:");
-            panel.Controls.Add(pivotYNumeric);
-            AddLabel("Z:");
-            panel.Controls.Add(pivotZNumeric);
-            var centrePivot = new Button { Text = "Use map centre", AutoSize = true };
-            centrePivot.Click += (_, _) =>
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.Controls.Add(new Label
             {
-                try
-                {
-                    var centre = GetSelectedMapCentre();
-                    pivotXNumeric.Value = (decimal)centre.X;
-                    pivotYNumeric.Value = (decimal)centre.Y;
-                    pivotZNumeric.Value = (decimal)centre.Z;
-                }
-                catch (Exception ex) { MessageBox.Show(this, ex.Message, "Map centre", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+                Text = "Add files or drop them below. YMAP / YBN files move and rotate; models are resaved.",
+                AutoSize = true, ForeColor = SystemColors.GrayText, Margin = new Padding(0, 0, 0, 8)
+            }, 0, 0);
+            mainList.Dock = DockStyle.Fill;
+            mainList.Margin = new Padding(0, 0, 0, 12);
+            layout.Controls.Add(mainList, 0, 1);
+
+            // Layout containers measure each label/input instead of using designer pixel
+            // coordinates. This keeps the footer aligned at different fonts and DPI.
+            transformPanel.Dock = DockStyle.Fill;
+            transformPanel.AutoSize = true;
+            transformPanel.ColumnCount = 2;
+            transformPanel.RowCount = 1;
+            transformPanel.Margin = new Padding(0, 0, 0, 10);
+            transformPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70));
+            transformPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
+            var moveGroup = InputGroup("Move offset", 3);
+            var moveInputs = (TableLayoutPanel)moveGroup.Controls[0];
+            AddCoordinate(moveInputs, "X", xMoveNumeric, 0);
+            AddCoordinate(moveInputs, "Y", yMoveNumeric, 1);
+            AddCoordinate(moveInputs, "Z", zMoveNumeric, 2);
+            moveGroup.Margin = new Padding(0, 0, 10, 0);
+            transformPanel.Controls.Add(moveGroup, 0, 0);
+            var rotationGroup = InputGroup("Rotation", 1);
+            rotationGroup.Margin = Padding.Empty;
+            AddCoordinate((TableLayoutPanel)rotationGroup.Controls[0], "Z (degrees)", rotationNumeric, 0);
+            transformPanel.Controls.Add(rotationGroup, 1, 0);
+            layout.Controls.Add(transformPanel, 0, 2);
+
+            var actions = new TableLayoutPanel
+            {
+                Name = "actionsPanel", Dock = DockStyle.Fill, AutoSize = true,
+                ColumnCount = 5, RowCount = 1, Margin = Padding.Empty
             };
-            panel.Controls.Add(centrePivot);
-            Controls.Add(panel);
-            backupCheckBox.Location = new Point(stopButton.Right + 8, moveRow + 2);
-            Controls.Add(backupCheckBox);
-            // Keep the existing help overlays above the new input controls.
+            for (int i = 0; i < 3; i++) actions.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            actions.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            var buttons = new[] { processAllButton, processSelectedButton, stopButton };
+            for (int i = 0; i < buttons.Length; i++)
+            {
+                buttons[i].AutoSize = true;
+                buttons[i].MinimumSize = new Size(112, 32);
+                buttons[i].Margin = new Padding(0, 0, 8, 0);
+                buttons[i].Anchor = AnchorStyles.Left;
+                actions.Controls.Add(buttons[i], i, 0);
+            }
+            backupCheckBox.Anchor = AnchorStyles.Right;
+            backupCheckBox.Margin = new Padding(8, 0, 0, 0);
+            actions.Controls.Add(backupCheckBox, 4, 0);
+            layout.Controls.Add(actions, 0, 3);
+            xMoveLabel.Visible = yMoveLabel.Visible = zMoveLabel.Visible = false;
+            Controls.Add(layout);
+            layout.BringToFront();
             aboutGroupBox.BringToFront();
             howToUseGroupBox.BringToFront();
             vecDiffGroupBox.BringToFront();
-            howToUseRichTextBox.Text = "Add files or a folder, then enter a move offset. YMAP and YBN files are rotated around the shared pivot first, then moved by the offset. Positive Z rotation is counterclockwise viewed from above (+X toward +Y). Use the same pivot and offset for every file belonging to a map. Select YMAPs and use 'Use map centre' to fill the pivot.\n\nYDR, YDD and YFT files are resaved through CodeWalker without moving or rotating their local model geometry. Leave the offset and rotation at zero to resave all formats.\n\nProcessing replaces each input file. 'Keep backups' is enabled by default and saves the previous file beside it as .bak (additional backups get unique names). Stop cancels the current file before replacement where possible and skips the remaining files. Completed files remain processed.\n\nUnsupported YMAP sections and save errors leave the original file unchanged. Hover over an error row to see its full message.";
+            aboutRichTextBox.Dock = howToUseRichTextBox.Dock = DockStyle.Fill;
+            closeAboutButton.Dock = howToUseCloseButton.Dock = DockStyle.Bottom;
+            mainList.SizeChanged += (_, _) => UpdateListColumns();
+            howToUseRichTextBox.Text = "Add files or a folder, then enter a move offset and Z rotation in degrees. YMAP and YBN files rotate around the world's Z axis at X=0, Y=0 first, then move by the offset. Positive angles rotate counterclockwise viewed from above (+X toward +Y). Rotation does not change height. Use the same angle and offset for every file belonging to a map.\n\nYDR, YDD and YFT files are resaved through CodeWalker without moving or rotating their local model geometry. Leave the offset and rotation at zero to resave all formats.\n\nProcessing replaces each input file. 'Keep backups' is enabled by default and saves the previous file beside it as .bak (additional backups get unique names). Stop cancels the current file before replacement where possible and skips the remaining files. Completed files remain processed.\n\nUnsupported YMAP sections and save errors leave the original file unchanged. Hover over an error row to see its full message.";
+            ResumeLayout(true);
+            UpdateListColumns();
+            LayoutOverlays();
+        }
+
+        private static GroupBox InputGroup(string title, int coordinateCount)
+        {
+            var group = new GroupBox
+            {
+                Text = title, Dock = DockStyle.Fill, AutoSize = true,
+                Padding = new Padding(12, 8, 12, 12)
+            };
+            var inputs = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, AutoSize = true, ColumnCount = coordinateCount * 2,
+                RowCount = 1, Margin = Padding.Empty
+            };
+            for (int i = 0; i < coordinateCount; i++)
+            {
+                inputs.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                inputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / coordinateCount));
+            }
+            group.Controls.Add(inputs);
+            return group;
+        }
+
+        private void AddCoordinate(TableLayoutPanel inputs, string label, NumericUpDown input, int index)
+        {
+            inputs.Controls.Add(new Label
+            {
+                Text = label, AutoSize = true, Anchor = AnchorStyles.Left,
+                Margin = new Padding(index == 0 ? 0 : 12, 0, 8, 0)
+            }, index * 2, 0);
+            input.ResetFont();
+            input.Dock = DockStyle.Fill;
+            input.TextAlign = HorizontalAlignment.Right;
+            input.Margin = Padding.Empty;
+            inputs.Controls.Add(input, index * 2 + 1, 0);
+        }
+
+        private void UpdateListColumns()
+        {
+            float scale = mainList.DeviceDpi / 96f;
+            mainList.Columns[0].Width = (int)(160 * scale);
+            mainList.Columns[2].Width = (int)(80 * scale);
+            mainList.Columns[3].Width = (int)(190 * scale);
+            mainList.Columns[1].Width = Math.Max((int)(120 * scale), mainList.ClientSize.Width -
+                mainList.Columns[0].Width - mainList.Columns[2].Width - mainList.Columns[3].Width - SystemInformation.VerticalScrollBarWidth - 4);
         }
 
         private async Task CheckForUpdateAsync(bool manualCheck = false)
@@ -253,9 +340,22 @@ namespace Ymap_Ybn_Mover
             foreach (var item in mainList.SelectedItems.Cast<ListViewItem>().ToArray()) item.Remove();
         }
 
-        private static void ToggleControlVisibility(List<Control> controls, bool visible)
+        private void ToggleControlVisibility(List<Control> controls, bool visible)
         {
             foreach (var control in controls) control.Visible = visible;
+            LayoutOverlays();
+        }
+
+        private void LayoutOverlays()
+        {
+            int availableHeight = ClientSize.Height - mainMenuStrip.Height - mainStatusStrip.Height;
+            foreach (var (group, preferred) in overlaySizes)
+            {
+                int width = Math.Min(preferred.Width, ClientSize.Width - 32);
+                int height = Math.Min(preferred.Height, availableHeight - 32);
+                group.Bounds = new Rectangle((ClientSize.Width - width) / 2,
+                    mainMenuStrip.Height + (availableHeight - height) / 2, width, height);
+            }
         }
 
         private async Task ProcessFilesAsync(IEnumerable<ListViewItem> items)
@@ -264,7 +364,7 @@ namespace Ymap_Ybn_Mover
             var selected = items.ToList();
             if (selected.Count == 0) return;
             var transform = new MapTransform(new Vector3((float)xMoveNumeric.Value, (float)yMoveNumeric.Value, (float)zMoveNumeric.Value),
-                new Vector3((float)pivotXNumeric.Value, (float)pivotYNumeric.Value, (float)pivotZNumeric.Value), (float)rotationNumeric.Value);
+                (float)rotationNumeric.Value);
             bool createBackup = backupCheckBox.Checked;
             cts = new CancellationTokenSource();
             var token = cts.Token;
@@ -324,7 +424,7 @@ namespace Ymap_Ybn_Mover
         private void SetTransformControlsEnabled(bool enabled)
         {
             xMoveNumeric.Enabled = yMoveNumeric.Enabled = zMoveNumeric.Enabled = backupCheckBox.Enabled = enabled;
-            Controls["transformPanel"]!.Enabled = enabled;
+            transformPanel.Enabled = enabled;
             vecDiffGroupBox.Enabled = enabled;
         }
 

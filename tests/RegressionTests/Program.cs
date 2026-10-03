@@ -4,18 +4,19 @@ using Ymap_Ybn_Mover;
 
 internal static class Program
 {
-    private static readonly MapTransform Rotation = new(new Vector3(20, -30, 7), new Vector3(5, 6, -2), 37);
+    private static readonly MapTransform Rotation = new(new Vector3(20, -30, 7), 37);
     private static int failures;
 
     [STAThread]
     private static int Main()
     {
-        Test("positive Z rotation and pivot/offset order", () =>
+        Test("Z rotation around the world origin preserves height and precedes the offset", () =>
         {
-            var transform = new MapTransform(new Vector3(10, 20, 30), new Vector3(5, 6, 7), 90);
-            Near(transform.Position(new Vector3(7, 6, 7)), new Vector3(15, 28, 37));
+            var transform = new MapTransform(new Vector3(10, 20, 30), 90);
+            Near(transform.Position(new Vector3(2, 0, 7)), new Vector3(10, 22, 37));
             Near(transform.Direction(Vector3.UnitX), Vector3.UnitY);
-            Near(transform.Position(transform.Pivot), transform.Pivot + transform.Offset);
+            Near(transform.Position(Vector3.Zero), transform.Offset);
+            Near(new MapTransform(Vector3.Zero, -37).Position(new Vector3(4, -5, 9)).Z, 9);
         });
         Test("orientation composition with a tilted entity", () =>
         {
@@ -39,7 +40,7 @@ internal static class Program
         {
             var map = MapFixture();
             var original = map.AllEntities[0].Position;
-            var move = new MapTransform(new Vector3(4, 5, 6), Vector3.Zero, 0);
+            var move = new MapTransform(new Vector3(4, 5, 6), 0);
             var loaded = ConvertMap(map, move);
             Near(loaded.AllEntities[0].Position, original + move.Offset);
         });
@@ -72,14 +73,14 @@ internal static class Program
             var map = MapFixture();
             map.LODLights = LightFixture(map);
             // Supply editor objects for the initial fixture save, then reload raw arrays.
-            GameFileTransformer.TransformYmap(map, new MapTransform(Vector3.Zero, Vector3.Zero, 0));
+            GameFileTransformer.TransformYmap(map, new MapTransform(Vector3.Zero, 0));
             var input = map.Save();
             var loaded = new YmapFile();
             loaded.Load(FileProcessor.ConvertFile("lights.YMAP", input, Rotation));
             Check(loaded.LODLights.direction.Length == 1, "light lost");
             Near(loaded.LODLights.direction[0].ToVector3(), Rotation.Direction(Vector3.UnitX));
             Check(loaded.LODLights.hash[0] == 123 && loaded.LODLights.falloff[0] == 15 && loaded.LODLights.coronaIntensity[0] == 20, "light metadata changed");
-            loaded.Load(FileProcessor.ConvertFile("lights.ymap", input, new MapTransform(Vector3.Zero, Vector3.Zero, 0)));
+            loaded.Load(FileProcessor.ConvertFile("lights.ymap", input, new MapTransform(Vector3.Zero, 0)));
             Near(loaded.LODLights.direction[0].ToVector3(), Vector3.UnitX);
         });
         Test("grass packed positions and normals survive rotation", () =>
@@ -128,7 +129,7 @@ internal static class Program
         {
             var map = MapFixture();
             map.BoxOccluders = new[] { new YmapBoxOccluder(map, new BoxOccluder { iLength = 4, iWidth = 4, iHeight = 4 }) };
-            Throws<NotSupportedException>(() => GameFileTransformer.TransformYmap(map, new MapTransform(new Vector3(9000, 0, 0), Vector3.Zero, 0)));
+            Throws<NotSupportedException>(() => GameFileTransformer.TransformYmap(map, new MapTransform(new Vector3(9000, 0, 0), 0)));
         });
         Test("incomplete cloth collision format is refused", () =>
         {
@@ -220,7 +221,7 @@ internal static class Program
             mesh.CompositeFlags1 = new BoundCompositeChildrenFlags { Flags1 = EBoundCompositeFlags.MAP_VEHICLE | EBoundCompositeFlags.PED, Flags2 = EBoundCompositeFlags.OBJECT };
             mesh.CompositeFlags2 = new BoundCompositeChildrenFlags { Flags1 = EBoundCompositeFlags.TEST_CAMERA, Flags2 = EBoundCompositeFlags.TEST_AI };
             var source = new YbnFile { Bounds = Composite(new[] { mesh }) };
-            GameFileTransformer.TransformYbn(source, new MapTransform(Vector3.Zero, Vector3.Zero, 0));
+            GameFileTransformer.TransformYbn(source, new MapTransform(Vector3.Zero, 0));
             var input = RoundTrip(source);
             // RoundTrip directly through CodeWalker would rebuild using the placement;
             // feed its existing bytes directly into the application's serializer.
@@ -290,42 +291,67 @@ internal static class Program
             Check(File.ReadAllBytes(filename).SequenceEqual(original), "original changed");
             Check(Directory.GetFiles(directory).Length == 1, "failed conversion created extra files");
         }));
-        Test("form initializes with cross-thread checks enabled", () =>
+        Test("footer layout fits default, narrow and large-text windows", () =>
         {
             System.Windows.Forms.Control.CheckForIllegalCrossThreadCalls = true;
-            using var form = new MainForm();
+            using var form = new MainForm(checkForUpdates: false);
             Check(System.Windows.Forms.Control.CheckForIllegalCrossThreadCalls, "cross-thread checks disabled");
-            var panel = form.Controls.Find("transformPanel", false).Single();
-            var processButton = form.Controls.Find("processAllButton", false).Single();
-            Check(panel.Bottom < processButton.Top, "rotation row overlaps the process buttons");
-            if (Environment.GetEnvironmentVariable("YMAP_MOVER_RENDER_TEST") is { Length: > 0 } path)
-            {
-                form.CreateControl();
-                using var bitmap = new System.Drawing.Bitmap(form.ClientSize.Width, form.ClientSize.Height);
-                using var graphics = System.Drawing.Graphics.FromImage(bitmap);
-                graphics.Clear(form.BackColor);
-                // Render without showing a window or triggering startup network checks.
-                foreach (System.Windows.Forms.Control control in form.Controls)
-                {
-                    if (control is System.Windows.Forms.GroupBox) continue;
-                    _ = control.Handle;
-                    using var childBitmap = new System.Drawing.Bitmap(control.Width, control.Height);
-                    control.DrawToBitmap(childBitmap, new System.Drawing.Rectangle(System.Drawing.Point.Empty, control.Size));
-                    graphics.DrawImageUnscaled(childBitmap, control.Location);
-                    if (control is System.Windows.Forms.FlowLayoutPanel)
-                        foreach (System.Windows.Forms.Control child in control.Controls)
-                        {
-                            _ = child.Handle;
-                            using var panelChild = new System.Drawing.Bitmap(child.Width, child.Height);
-                            child.DrawToBitmap(panelChild, new System.Drawing.Rectangle(System.Drawing.Point.Empty, child.Size));
-                            graphics.DrawImageUnscaled(panelChild, control.Left + child.Left, control.Top + child.Top);
-                        }
-                }
-                bitmap.Save(path);
-            }
+            // Create visible control handles off-screen without displaying a user-facing
+            // window or running the startup update request. DrawToBitmap renders the form.
+            form.ShowInTaskbar = false;
+            form.StartPosition = System.Windows.Forms.FormStartPosition.Manual;
+            form.Location = new System.Drawing.Point(-20000, -20000);
+            form.Opacity = 0;
+            form.Show();
+            CheckUiLayout(form);
+            string? path = Environment.GetEnvironmentVariable("YMAP_MOVER_RENDER_TEST");
+            if (!string.IsNullOrEmpty(path)) RenderForm(form, path);
+            form.Size = form.MinimumSize;
+            CheckUiLayout(form);
+            if (!string.IsNullOrEmpty(path)) RenderForm(form, Path.ChangeExtension(path, "minimum.png"));
+            form.Font = new System.Drawing.Font(form.Font.FontFamily, 13.5f);
+            form.ClientSize = new System.Drawing.Size(1560, 930);
+            CheckUiLayout(form);
+            if (!string.IsNullOrEmpty(path)) RenderForm(form, Path.ChangeExtension(path, "large-text.png"));
         });
         Console.WriteLine(failures == 0 ? "All regression checks passed." : $"{failures} regression checks failed.");
         return failures == 0 ? 0 : 1;
+    }
+
+    private static void CheckUiLayout(MainForm form)
+    {
+        form.PerformLayout();
+        var inputsPanel = form.Controls.Find("transformPanel", true).Single();
+        var actionsPanel = form.Controls.Find("actionsPanel", true).Single();
+        var list = form.Controls.Find("mainList", true).Single();
+        Check(list.Bottom <= inputsPanel.Top, "inputs overlap the file list");
+        Check(inputsPanel.Bottom <= actionsPanel.Top, "inputs overlap the action row");
+        foreach (System.Windows.Forms.Control group in inputsPanel.Controls)
+        {
+            var inputs = (System.Windows.Forms.TableLayoutPanel)group.Controls[0];
+            inputs.PerformLayout();
+            foreach (System.Windows.Forms.Control control in inputs.Controls)
+            {
+                Check(inputs.ClientRectangle.Contains(control.Bounds), "coordinate control clipped by its layout");
+                if (control is System.Windows.Forms.NumericUpDown number)
+                {
+                    int requiredWidth = System.Windows.Forms.TextRenderer.MeasureText("-100000.000", number.Font).Width + 24;
+                    Check(number.Width >= requiredWidth, "coordinate input too narrow for its allowed range");
+                }
+                foreach (System.Windows.Forms.Control other in inputs.Controls)
+                    if (control != other) Check(!control.Bounds.IntersectsWith(other.Bounds), "coordinate label/input overlap");
+            }
+        }
+        foreach (System.Windows.Forms.Control control in actionsPanel.Controls)
+            Check(actionsPanel.ClientRectangle.Contains(control.Bounds), "action control clipped by its layout");
+        Check(form.Controls.Find("pivotXNumeric", true).Length == 0, "pivot control still present");
+    }
+
+    private static void RenderForm(MainForm form, string path)
+    {
+        using var bitmap = new System.Drawing.Bitmap(form.Width, form.Height);
+        form.DrawToBitmap(bitmap, new System.Drawing.Rectangle(System.Drawing.Point.Empty, form.Size));
+        bitmap.Save(path);
     }
 
     private static void Test(string name, Action test)
