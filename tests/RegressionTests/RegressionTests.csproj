@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <CodeWalkerCorePath Condition="'$(CodeWalkerCorePath)' == ''">$(MSBuildProjectDirectory)\..\..\lib\CodeWalker.Core.dll</CodeWalkerCorePath>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Ymap Ybn Mover.csproj" />
+    <Reference Include="CodeWalker.Core"><HintPath>$(CodeWalkerCorePath)</HintPath></Reference>
+  </ItemGroup>
+</Project>
