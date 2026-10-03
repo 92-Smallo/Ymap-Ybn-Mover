@@ -200,7 +200,7 @@ internal static class Program
                 Near(child.BoxMin, input.Bounds.BoxMin);
                 Near(child.SphereRadius, input.Bounds.SphereRadius);
             });
-        Test("geometry and GeometryBVH preserve local vertices and collision queries", () =>
+        Test("geometry and GeometryBVH retain world geometry and ordinary hierarchy collision queries", () =>
         {
             foreach (var type in new[] { "Geometry", "GeometryBVH" })
             {
@@ -208,15 +208,15 @@ internal static class Program
                 var original = (BoundGeometry)input.Bounds;
                 var loaded = ConvertBounds(input, Rotation);
                 var child = (BoundGeometry)((BoundComposite)loaded.Bounds).Children.data_items[0];
-                Near(child.CenterGeom, original.CenterGeom);
+                Near(child.CenterGeom, Rotation.Position(original.CenterGeom));
+                Check(child.Transform == Matrix.Identity, "rotated mesh retains an editor placement matrix");
+                Near(child.Transform.ScaleVector, Vector3.One);
                 for (int i = 0; i < original.Vertices.Length; i++)
                 {
-                    Near(child.Vertices[i], original.Vertices[i], 0.001f);
+                    Near(child.Vertices[i], Rotation.Direction(original.Vertices[i]), 0.001f);
                     Near(Vector3.TransformCoordinate(child.Vertices[i] + child.CenterGeom, child.Transform), Rotation.Position(original.Vertices[i] + original.CenterGeom), 0.002f);
                 }
                 Check(child.Polygons.Select(p => p.Type).Order().SequenceEqual(original.Polygons.Select(p => p.Type).Order()), "polygon types changed");
-                Near(child.BoxMin, original.BoxMin, 0.002f);
-                Near(child.BoxMax, original.BoxMax, 0.002f);
                 if (type == "GeometryBVH")
                 {
                     // Sphere primitive inside the mesh; a translated ray must still hit after save.
@@ -224,15 +224,7 @@ internal static class Program
                     var hit = input.Bounds.RayIntersect(ref ray);
                     Check(hit.Hit, "fixture ray missed");
                     var transformedRay = new Ray(Rotation.Position(ray.Position), Rotation.Direction(ray.Direction));
-                    // CodeWalker's editor queries use Transform in GetVertexPos even though
-                    // a composite already inverse-transforms the ray. Query the persisted
-                    // local mesh explicitly, as the game's collision hierarchy does.
-                    var localRay = new Ray(Vector3.TransformCoordinate(transformedRay.Position, child.TransformInv),
-                        Vector3.TransformNormal(transformedRay.Direction, child.TransformInv));
-                    var placement = child.Transform;
-                    child.Transform = Matrix.Identity;
-                    var movedHit = child.RayIntersect(ref localRay);
-                    child.Transform = placement;
+                    var movedHit = loaded.Bounds.RayIntersect(ref transformedRay);
                     Check(movedHit.Hit, "rotated serialized collision ray missed");
                     Near(movedHit.HitDist, hit.HitDist, 0.01f);
                 }
@@ -265,9 +257,13 @@ internal static class Program
                     Check(world.Min.X >= moved.BoxMin.X - 0.01 && world.Max.X <= moved.BoxMax.X + 0.01, "root bounds do not enclose child");
                 }
         });
-        Test("mesh collision keeps local BVH under an existing scaled placement", () =>
+        Test("a triangle mesh bakes an existing non-uniform scaled placement without losing filters", () =>
         {
             var mesh = GeometryFixture("GeometryBVH").Bounds;
+            var triangles = (BoundGeometry)mesh;
+            triangles.Polygons = triangles.Polygons.Where(p => p.Type == BoundPolygonType.Triangle).ToArray();
+            triangles.PolygonMaterialIndices = new byte[triangles.Polygons.Length];
+            for (int i = 0; i < triangles.Polygons.Length; i++) triangles.Polygons[i].Index = i;
             var placement = Matrix.Scaling(1.2f, 0.8f, 1.1f) * Matrix.RotationZ(-0.6f) * Matrix.Translation(35, -14, 3);
             SetTransform(mesh, placement);
             mesh.CompositeFlags1 = new BoundCompositeChildrenFlags { Flags1 = EBoundCompositeFlags.MAP_VEHICLE | EBoundCompositeFlags.PED, Flags2 = EBoundCompositeFlags.OBJECT };
@@ -282,13 +278,55 @@ internal static class Program
             loaded.Load(FileProcessor.ConvertFile("mesh.ybn", stableBytes, Rotation));
             var actual = (BoundGeometry)((BoundComposite)loaded.Bounds).Children.data_items[0];
             var original = (BoundGeometry)((BoundComposite)input.Bounds).Children.data_items[0];
-            Near(actual.BoxMin, original.BoxMin, 0.001f);
-            Near(actual.BoxMax, original.BoxMax, 0.001f);
+            Check(actual.Transform == Matrix.Identity, "scaled triangle mesh placement was not baked");
             for (int i = 0; i < actual.Vertices.Length; i++)
                 Near(Vector3.TransformCoordinate(actual.Vertices[i] + actual.CenterGeom, actual.Transform),
                     Rotation.Position(Vector3.TransformCoordinate(original.Vertices[i] + original.CenterGeom, original.Transform)), 0.003f);
             Check(actual.CompositeFlags1.Equals(original.CompositeFlags1) && actual.CompositeFlags2.Equals(original.CompositeFlags2), "collision filters changed");
             Near(Vector3.TransformCoordinate(Vector3.TransformCoordinate(Vector3.One, actual.Transform), actual.TransformInv), Vector3.One, 0.001f);
+        });
+        Test("a 90-degree mesh keeps CodeWalker render scale and can be resaved without double rotation", () =>
+        {
+            var source = RoundTrip(GeometryFixture("GeometryBVH"));
+            var rotation = new MapTransform(Vector3.Zero, 90, new Vector3(100, 200, 0));
+            var loaded = ConvertBounds(source, rotation);
+            var mesh = (BoundGeometry)((BoundComposite)loaded.Bounds).Children.data_items[0];
+            Near(mesh.Transform.ScaleVector, Vector3.One);
+            var point = mesh.Vertices[0] + mesh.CenterGeom;
+            var resaved = new YbnFile(); resaved.Load(FileProcessor.ConvertFile("map.ybn", loaded.Save(), new MapTransform(Vector3.Zero, 0)));
+            var other = (BoundGeometry)((BoundComposite)resaved.Bounds).Children.data_items[0];
+            Near(other.Vertices[0] + other.CenterGeom, point, 0.002f);
+            Near(other.Transform.ScaleVector, Vector3.One);
+        });
+        Test("non-uniformly scaled primitive polygons are refused before file replacement", () => WithTemporaryDirectory(async directory =>
+        {
+            var mesh = RoundTrip(GeometryFixture("GeometryBVH")).Bounds;
+            SetTransform(mesh, Matrix.Scaling(1.2f, 0.8f, 1.1f));
+            var path = Path.Combine(directory, "scaled.ybn");
+            var bytes = new YbnFile { Bounds = Composite(new[] { mesh }) }.Save();
+            await File.WriteAllBytesAsync(path, bytes);
+            try { await FileProcessor.ProcessAsync(path, Rotation, true, CancellationToken.None); throw new Exception("non-uniform primitives were saved"); }
+            catch (NotSupportedException) { }
+            Check(File.ReadAllBytes(path).SequenceEqual(bytes), "refused collision overwrote the original");
+        }));
+        Test("zero-offset resave repairs a rotated matrix without changing world placement", () =>
+        {
+            var source = RoundTrip(GeometryFixture("GeometryBVH"));
+            GameFileTransformer.TransformYbn(source, new MapTransform(Vector3.Zero, 0));
+            var oldPlacement = Matrix.RotationZ(MathF.PI / 2) * Matrix.Translation(100, 200, 3);
+            SetTransform(source.Bounds, oldPlacement);
+            source.Bounds = Composite(new[] { source.Bounds });
+            var bytes = source.Save();
+            var input = new YbnFile(); input.Load(bytes);
+            var oldMesh = (BoundGeometry)((BoundComposite)input.Bounds).Children.data_items[0];
+            var loaded = new YbnFile(); loaded.Load(FileProcessor.ConvertFile("broken-preview.ybn", bytes, new MapTransform(Vector3.Zero, 0)));
+            var mesh = (BoundGeometry)((BoundComposite)loaded.Bounds).Children.data_items[0];
+            Check(mesh.Transform == Matrix.Identity, "preview repair kept the rotated matrix");
+            for (int i = 0; i < oldMesh.Vertices.Length; i++)
+                Near(mesh.Vertices[i] + mesh.CenterGeom, Vector3.TransformCoordinate(oldMesh.Vertices[i] + oldMesh.CenterGeom, oldMesh.Transform), 0.002f);
+            var originalRay = new Ray(new Vector3(4, -2, 12), -Vector3.UnitZ);
+            var worldRay = new Ray(Vector3.TransformCoordinate(originalRay.Position, oldMesh.Transform), Vector3.TransformNormal(originalRay.Direction, oldMesh.Transform));
+            Check(loaded.Bounds.RayIntersect(ref worldRay).Hit, "repaired ordinary hierarchy still misses collision");
         });
         Test("off-center and unused mesh vertices survive packing, including shrunk vertices", () =>
         {
@@ -310,7 +348,7 @@ internal static class Program
                 for (int i = 0; i < expected.Length; i++)
                     Near(Vector3.TransformCoordinate(actual.Vertices[i] + actual.CenterGeom, actual.Transform), transform.Position(expected[i]), 0.04f);
                 if (shrunk != null)
-                    for (int i = 0; i < shrunk.Length; i++) Near(actual.VerticesShrunk[i], shrunk[i], 0.04f);
+                    for (int i = 0; i < shrunk.Length; i++) Near(actual.VerticesShrunk[i], transform.Direction(shrunk[i]), 0.04f);
             }
         });
         Test("resaving repairs stale outer bounds throughout a collision hierarchy", () =>

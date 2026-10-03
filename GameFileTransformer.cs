@@ -92,8 +92,12 @@ public static class GameFileTransformer
         var root = ybn.Bounds ?? throw new InvalidDataException("The YBN contains no bounds.");
         root = LocalSpaceBoundBvh.Prepare(root);
         ybn.Bounds = root;
-        RefreshCompositeBounds(root);
-        if (transform.IsIdentity) return;
+        if (transform.IsIdentity)
+        {
+            BakePlacedMeshes(root);
+            RefreshCompositeBounds(root);
+            return;
+        }
 
         if (root is not BoundComposite composite)
         {
@@ -125,12 +129,22 @@ public static class GameFileTransformer
         foreach (var child in children)
         {
             if (child == null) continue;
-            // Do not recurse: nested geometry and shapes stay in their local frame.
+            // Apply map placement only at this level; baking below moves each mesh
+            // into its own parent's frame without applying the map transform twice.
             child.Transform *= transform.Matrix;
             child.TransformInv = Matrix.Invert(child.Transform);
         }
+        BakePlacedMeshes(composite);
         RefreshCompositeBounds(composite);
         // CodeWalker Save rebuilds child transforms, bounding boxes and composite BVH.
+    }
+
+    private static void BakePlacedMeshes(Bounds bounds)
+    {
+        if (bounds is BoundGeometry geometry) CollisionGeometryPlacement.Bake(geometry);
+        else if (bounds is BoundComposite composite)
+            foreach (var child in composite.Children?.data_items ?? [])
+                if (child != null) BakePlacedMeshes(child);
     }
 
     private static void RefreshCompositeBounds(Bounds bounds)

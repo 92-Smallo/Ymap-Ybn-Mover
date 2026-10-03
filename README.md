@@ -16,7 +16,9 @@ The transformation is `newPosition = centre + Rz(angle) * (position - centre) + 
 
 **Process Selected** calculates the centre from all loaded map files, so selecting only collision files still uses the loaded YMAP context. Process the whole location together; loading unrelated maps into the same list gives a combined centre. Centre calculation finishes before any file is replaced, and can be cancelled. A zero-degree move/resave does not need a centre calculation.
 
-Collision shapes retain their local geometry. The tool changes composite child transforms and rebuilds their lookup data through CodeWalker, including meshes, primitive bounds, existing transformed children and nested composites. Vertex packing covers every raw and shrunk vertex, including meshes whose geometry center differs from the bounding-box midpoint. Outer collision bounds are recalculated from the children, including during zero-offset resaves. A standalone collision root is wrapped in a composite so its placement can be stored in the game format. Quarter turns use exact rotation matrices.
+Collision meshes store their transformed vertices, geometry centres and shrunk vertices in the parent frame, with an identity child matrix. This keeps them visible and selectable in CodeWalker: its mesh renderer reads a 90° matrix as zero X/Y scale, and its polygon queries otherwise apply placement twice. The tool rebuilds mesh lookup data and preserves polygon types, materials and collision filters. Native primitive bounds retain their placement matrices; nested composite frames are preserved. Existing non-uniform scale/shear can be baked for triangle-only meshes. Meshes combining non-uniform scale/shear with primitive polygons are refused because baking would change their shapes.
+
+Vertex packing covers every raw and shrunk vertex, including meshes whose geometry centre differs from the bounding-box midpoint. Outer collision bounds are recalculated from the children, including during zero-offset resaves. A standalone collision root is wrapped in a composite when placement changes. Quarter turns use exact rotation matrices, with the usual precision limits when transformed vertices are packed back into the file.
 
 YMAP transformations include entity and MLO instance placement, car-generator headings, distant light positions, LOD light directions, grass positions/normals, timecycle bounds and occlusion data. Streaming/entity bounds are transformed using all eight corners. Timecycle volumes remain axis-aligned, so arbitrary rotation produces an enclosing box. Packed grass coordinates and occluder coordinates have the precision limits of the game format.
 
@@ -25,6 +27,8 @@ YMAP transformations include entity and MLO instance placement, car-generator he
 Supported inputs: `.ymap`, `.ybn`, `.ydr`, `.ydd`, `.yft` (extensions are case-insensitive).
 
 YDR, YDD and YFT files are resaved through CodeWalker; their local model coordinates are preserved. Set the move offset and rotation to zero to resave YMAP and YBN files too. CodeWalker can rebuild polygon edge references and other derived resource data when saving; this is not a guarantee of repairing every model problem.
+
+Zero-offset, zero-degree YBN resaves also bake existing mesh placement matrices without rotating the location again. This can repair files whose collision disappeared from CodeWalker's viewer after conversion by an earlier preview.
 
 ## Backups, errors and stopping
 
@@ -60,7 +64,7 @@ To check local map fixtures without modifying their originals:
 dotnet run --project tests/RegressionTests -c Release -- 'E:\testMap\files' artifacts/collision-audit
 ```
 
-This optional audit calculates one shared map centre, then saves separate collision outputs for resaving, +37°, +90°, -90° and +90° with an offset. It compares all mesh vertices, polygon materials, collision filters, enclosing bounds and sampled local collision ray hits after serialization. It also checks YMAP entity positions/orientations at +90°. An optional third directory argument compares earlier outputs rotated +90° about world origin. Game assets are not included in the repository.
+This optional audit calculates one shared map centre, then saves separate collision outputs for resaving, +37°, +90°, -90° and +90° with an offset. It compares all mesh vertices, polygon materials, collision filters, enclosing bounds, renderer scale and sampled contacts through the unmodified loaded CodeWalker hierarchy. It reports nearest-face changes separately from missing contacts, since millimetre packing differences can change which overlapping/grazing face is closest. It also checks YMAP entity positions/orientations at +90°. An optional third directory argument compares earlier outputs rotated +90° about world origin. Game assets are not included in the repository.
 
 To make a portable framework-dependent build:
 
