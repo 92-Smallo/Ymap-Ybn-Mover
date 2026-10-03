@@ -2,22 +2,26 @@ using SharpDX;
 
 namespace Ymap_Ybn_Mover;
 
-/// <summary>Rotate around the world's Z axis, then translate.</summary>
+/// <summary>Rotate around the map centre's Z axis, then translate.</summary>
 public sealed class MapTransform
 {
     private readonly Matrix rotationMatrix;
     public Vector3 Offset { get; }
+    public Vector3 Centre { get; }
     public Quaternion Rotation { get; }
     public Matrix Matrix { get; }
     public bool HasRotation { get; }
     public bool IsIdentity => !HasRotation && Offset == Vector3.Zero;
 
-    public MapTransform(Vector3 offset, float degrees)
+    public MapTransform(Vector3 offset, float degrees) : this(offset, degrees, Vector3.Zero) { }
+
+    public MapTransform(Vector3 offset, float degrees, Vector3 centre)
     {
-        if (!IsFinite(offset) || !float.IsFinite(degrees))
-            throw new ArgumentException("Offset and rotation must be finite numbers.");
+        if (!IsFinite(offset) || !IsFinite(centre) || !float.IsFinite(degrees))
+            throw new ArgumentException("Offset, centre and rotation must be finite numbers.");
 
         Offset = offset;
+        Centre = new Vector3(centre.X, centre.Y, 0);
         degrees %= 360;
         HasRotation = degrees != 0;
         Rotation = HasRotation ? Quaternion.RotationAxis(Vector3.UnitZ, MathUtil.DegreesToRadians(degrees)) : Quaternion.Identity;
@@ -32,11 +36,11 @@ public sealed class MapTransform
             rotationMatrix.M21 = MathF.Round(rotationMatrix.M21);
             rotationMatrix.M22 = MathF.Round(rotationMatrix.M22);
         }
-        Matrix = rotationMatrix * SharpDX.Matrix.Translation(offset);
+        Matrix = rotationMatrix * SharpDX.Matrix.Translation(Centre - Vector3.TransformCoordinate(Centre, rotationMatrix) + offset);
     }
 
     public Vector3 Position(Vector3 position) => HasRotation
-        ? Vector3.TransformCoordinate(position, rotationMatrix) + Offset
+        ? Vector3.TransformCoordinate(position - Centre, rotationMatrix) + Centre + Offset
         : position + Offset;
 
     public Vector3 Direction(Vector3 direction) => HasRotation

@@ -20,6 +20,9 @@ internal static class AssetAudit
         if (Overlaps(output, input) || (previous != null && Overlaps(output, previous)))
             throw new ArgumentException("Test output must use a separate folder.");
         Directory.CreateDirectory(output);
+        var context = Directory.GetFiles(input);
+        var sharedCentre = MapBatch.GetCentreAsync(context, CancellationToken.None).GetAwaiter().GetResult() ?? throw new Exception("No map bounds found.");
+        Console.WriteLine($"Shared map centre: {sharedCentre}");
         var failed = false;
         int files = 0, vertices = 0, rays = 0;
         foreach (var path in Directory.GetFiles(input).Where(p => Path.GetExtension(p).Equals(".ybn", StringComparison.OrdinalIgnoreCase)).Order())
@@ -29,8 +32,8 @@ internal static class AssetAudit
             var count = Meshes(source.Bounds, Matrix.Identity).Sum(m => m.Mesh.Vertices.Length);
             files++; vertices += count;
             Console.WriteLine($"{Path.GetFileName(path)}: {count} vertices");
-            foreach (var transform in new[] { new MapTransform(Vector3.Zero, 0), new MapTransform(Vector3.Zero, 37),
-                new MapTransform(Vector3.Zero, 90), new MapTransform(Vector3.Zero, -90), new MapTransform(new Vector3(20, -30, 7), 90) })
+            foreach (var transform in new[] { new MapTransform(Vector3.Zero, 0, sharedCentre), new MapTransform(Vector3.Zero, 37, sharedCentre),
+                new MapTransform(Vector3.Zero, 90, sharedCentre), new MapTransform(Vector3.Zero, -90, sharedCentre), new MapTransform(new Vector3(20, -30, 7), 90, sharedCentre) })
             {
                 var result = FileProcessor.ConvertFile(path, bytes, transform);
                 var loaded = Load(result);
@@ -57,7 +60,7 @@ internal static class AssetAudit
         {
             var bytes = File.ReadAllBytes(path);
             var source = new YmapFile(); source.Load(bytes);
-            var transform = new MapTransform(Vector3.Zero, 90);
+            var transform = new MapTransform(Vector3.Zero, 90, sharedCentre);
             var converted = FileProcessor.ConvertFile(path, bytes, transform);
             var loaded = new YmapFile(); loaded.Load(converted);
             var original = source.AllEntities ?? [];
@@ -126,12 +129,17 @@ internal static class AssetAudit
                     transform.Direction(Vector3.TransformNormal(ray.Direction, placementA)));
                 var inverse = Matrix.Invert(placementB);
                 var localRay = new Ray(Vector3.TransformCoordinate(worldRay.Position, inverse), Vector3.TransformNormal(worldRay.Direction, inverse));
+                // Compare the same effective local ray on both meshes. World/local
+                // float roundoff can otherwise change the nearest overlapping face
+                // even when all serialized vertices and the local BVH are unchanged.
+                var expectedHit = LocalHit(a, localRay);
                 var movedHit = LocalHit(b, localRay);
                 rays++;
-                if (!movedHit.Hit || MathF.Abs(originalHit.HitDist - movedHit.HitDist) > 0.01f)
+                if (Vector3.Distance(ray.Position, localRay.Position) > 0.005f || Vector3.Distance(ray.Direction, localRay.Direction) > 0.0001f ||
+                    movedHit.Hit != expectedHit.Hit || (expectedHit.Hit && MathF.Abs(expectedHit.HitDist - movedHit.HitDist) > 0.01f))
                 {
                     misses++;
-                    Console.WriteLine($"    ray {i}: {originalHit.HitDist} -> {movedHit.Hit}/{movedHit.HitDist}, local drift={Vector3.Distance(ray.Position, localRay.Position)}; direct local={LocalHit(b, ray).HitDist}");
+                    Console.WriteLine($"    ray {i}: {expectedHit.Hit}/{expectedHit.HitDist} -> {movedHit.Hit}/{movedHit.HitDist}, local drift={Vector3.Distance(ray.Position, localRay.Position)}");
                 }
             }
         }

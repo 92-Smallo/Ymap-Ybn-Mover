@@ -6,13 +6,15 @@ Download the [latest release](https://github.com/92-Smallo/Ymap-Ybn-Mover/releas
 
 ## Moving and rotating maps
 
-1. Add your YMAP and YBN files, or add a folder recursively.
+1. Add all YMAP and YBN files belonging to one map, or add its folder recursively.
 2. Enter the move offset X, Y, Z.
-3. Enter **Z (degrees)** in the Rotation group. Positive angles rotate counterclockwise viewed from above: +X turns toward +Y. Rotation uses the world's Z axis at X=0, Y=0 and preserves height.
-4. Apply exactly the same angle and offset to every YMAP/YBN belonging to that location.
+3. Enter **Z (degrees)** in the Rotation group. Positive angles rotate counterclockwise viewed from above: +X turns toward +Y. Rotation uses a vertical axis through the map's centre and preserves height.
+4. The centre is calculated automatically from the combined entity bounds of all loaded YMAPs. Without usable YMAP bounds, it uses the placed collision shapes. The same centre, angle and offset are applied to every processed YMAP/YBN.
 5. Choose **Process All** or **Process Selected**.
 
-The transformation is `newPosition = Rz(angle) * position + offset`: rotate around the world origin first, then translate. For example, rotating `(12, 20, 3)` by +90 degrees gives `(-20, 12, 3)` before the move offset is added. There are no pivot inputs.
+The transformation is `newPosition = centre + Rz(angle) * (position - centre) + offset`: rotate around the map centre first, then translate. For example, with centre `(100, 200)`, rotating `(102, 200, 3)` by +90 degrees gives `(100, 202, 3)` before the move offset is added. With zero offset, the centre stays in place. There are no pivot inputs.
+
+**Process Selected** calculates the centre from all loaded map files, so selecting only collision files still uses the loaded YMAP context. Process the whole location together; loading unrelated maps into the same list gives a combined centre. Centre calculation finishes before any file is replaced, and can be cancelled. A zero-degree move/resave does not need a centre calculation.
 
 Collision shapes retain their local geometry. The tool changes composite child transforms and rebuilds their lookup data through CodeWalker, including meshes, primitive bounds, existing transformed children and nested composites. Vertex packing covers every raw and shrunk vertex, including meshes whose geometry center differs from the bounding-box midpoint. Outer collision bounds are recalculated from the children, including during zero-offset resaves. A standalone collision root is wrapped in a composite so its placement can be stored in the game format. Quarter turns use exact rotation matrices.
 
@@ -58,7 +60,7 @@ To check local map fixtures without modifying their originals:
 dotnet run --project tests/RegressionTests -c Release -- 'E:\testMap\files' artifacts/collision-audit
 ```
 
-This optional audit saves separate collision outputs for resaving, +37°, +90°, -90° and +90° with an offset. It compares all mesh vertices, polygon materials, collision filters, enclosing bounds and sampled local collision ray hits after serialization. It also checks YMAP entity positions/orientations at +90°. An optional third directory argument compares previous +90° outputs. Game assets are not included in the repository.
+This optional audit calculates one shared map centre, then saves separate collision outputs for resaving, +37°, +90°, -90° and +90° with an offset. It compares all mesh vertices, polygon materials, collision filters, enclosing bounds and sampled local collision ray hits after serialization. It also checks YMAP entity positions/orientations at +90°. An optional third directory argument compares earlier outputs rotated +90° about world origin. Game assets are not included in the repository.
 
 To make a portable framework-dependent build:
 

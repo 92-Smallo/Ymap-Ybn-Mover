@@ -4,21 +4,61 @@ using Ymap_Ybn_Mover;
 
 internal static class Program
 {
-    private static readonly MapTransform Rotation = new(new Vector3(20, -30, 7), 37);
+    private static readonly MapTransform Rotation = new(new Vector3(20, -30, 7), 37, new Vector3(100, -200, 0));
     private static int failures;
 
     [STAThread]
     private static int Main(string[] args)
     {
         if (args.Length != 0) return AssetAudit.Run(args);
-        Test("Z rotation around the world origin preserves height and precedes the offset", () =>
+        Test("Z rotation about a map centre preserves height and precedes the offset", () =>
         {
-            var transform = new MapTransform(new Vector3(10, 20, 30), 90);
-            Near(transform.Position(new Vector3(2, 0, 7)), new Vector3(10, 22, 37));
+            var centre = new Vector3(100, 200, 500);
+            var transform = new MapTransform(new Vector3(10, 20, 30), 90, centre);
+            Near(transform.Position(new Vector3(102, 200, 7)), new Vector3(110, 222, 37));
             Near(transform.Direction(Vector3.UnitX), Vector3.UnitY);
-            Near(transform.Position(Vector3.Zero), transform.Offset);
-            Near(new MapTransform(Vector3.Zero, -37).Position(new Vector3(4, -5, 9)).Z, 9);
+            Near(transform.Position(centre), centre + transform.Offset);
+            Near(Vector3.TransformCoordinate(new Vector3(102, 200, 7), transform.Matrix), transform.Position(new Vector3(102, 200, 7)));
+            Near(new MapTransform(Vector3.Zero, -37, centre).Position(new Vector3(4, -5, 9)).Z, 9);
         });
+        Test("a batch shares the combined YMAP centre with collisions before any writes", () => WithTemporaryDirectory(async directory =>
+        {
+            var first = MapFixture(); first._CMapData.entitiesExtentsMin = new Vector3(100, 200, 0); first._CMapData.entitiesExtentsMax = new Vector3(110, 220, 20);
+            var second = MapFixture(); second._CMapData.entitiesExtentsMin = new Vector3(200, 300, 0); second._CMapData.entitiesExtentsMax = new Vector3(250, 340, 40);
+            var paths = new[] { Path.Combine(directory, "first.YMAP"), Path.Combine(directory, "second.ymap"), Path.Combine(directory, "collision.ybn") };
+            await File.WriteAllBytesAsync(paths[0], first.Save()); await File.WriteAllBytesAsync(paths[1], second.Save());
+            await File.WriteAllBytesAsync(paths[2], new YbnFile { Bounds = Primitive(BoundsType.Box) }.Save());
+            var originals = paths.Select(File.ReadAllBytes).ToArray();
+            var transform = await MapBatch.CreateTransformAsync(paths, new Vector3(3, -4, 5), 90, CancellationToken.None);
+            Near(transform.Centre, new Vector3(175, 270, 0));
+            Near(transform.Position(transform.Centre), transform.Centre + transform.Offset);
+            var map = new YmapFile(); map.Load(FileProcessor.ConvertFile(paths[0], originals[0], transform));
+            Near(map.AllEntities[0].Position, transform.Position(first.AllEntities[0].Position));
+            var ybn = new YbnFile(); ybn.Load(FileProcessor.ConvertFile(paths[2], originals[2], transform));
+            var child = ((BoundComposite)ybn.Bounds).Children.data_items[0];
+            Near(Vector3.TransformCoordinate(child.SphereCenter, child.Transform), transform.Position(Vector3.Zero));
+            for (int i = 0; i < paths.Length; i++) Check(File.ReadAllBytes(paths[i]).SequenceEqual(originals[i]), "centre preflight changed an input");
+        }));
+        Test("collision-only centre uses nested placed shapes rather than stale root bounds", () => WithTemporaryDirectory(async directory =>
+        {
+            var nested = Composite(new[] { Primitive(BoundsType.Box) });
+            SetTransform(nested.Children.data_items[0], Matrix.Translation(20, 30, 40));
+            SetTransform(nested, Matrix.Translation(-5, 8, 2));
+            var path = Path.Combine(directory, "nested.ybn");
+            await File.WriteAllBytesAsync(path, new YbnFile { Bounds = Composite(new[] { nested }) }.Save());
+            var transform = await MapBatch.CreateTransformAsync(new[] { path }, Vector3.Zero, 90, CancellationToken.None);
+            Near(transform.Centre, new Vector3(15, 38, 0));
+        }));
+        Test("zero rotation skips centre reads and cancelled preflight leaves inputs intact", () => WithTemporaryDirectory(async directory =>
+        {
+            var missing = Path.Combine(directory, "missing.ymap");
+            var move = await MapBatch.CreateTransformAsync(new[] { missing }, new Vector3(1, 2, 3), 0, CancellationToken.None);
+            Near(move.Position(Vector3.Zero), new Vector3(1, 2, 3));
+            var path = Path.Combine(directory, "map.ymap"); var bytes = MapFixture().Save(); await File.WriteAllBytesAsync(path, bytes);
+            try { await MapBatch.CreateTransformAsync(new[] { path }, Vector3.Zero, 90, new CancellationToken(true)); throw new Exception("cancelled preflight ran"); }
+            catch (OperationCanceledException) { }
+            Check(File.ReadAllBytes(path).SequenceEqual(bytes), "cancelled preflight changed input");
+        }));
         Test("quarter turns are exact and reversible at map-sized coordinates", () =>
         {
             foreach (float angle in new[] { -270f, -180f, -90f, 90f, 180f, 270f })

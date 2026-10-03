@@ -74,7 +74,7 @@ namespace Ymap_Ybn_Mover
             layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             layout.Controls.Add(new Label
             {
-                Text = "Add files or drop them below. YMAP / YBN files move and rotate; models are resaved.",
+                Text = "Load one map's files. YMAP / YBN files rotate about its centre and move; models are resaved.",
                 AutoSize = true, ForeColor = SystemColors.GrayText, Margin = new Padding(0, 0, 0, 8)
             }, 0, 0);
             mainList.Dock = DockStyle.Fill;
@@ -97,7 +97,7 @@ namespace Ymap_Ybn_Mover
             AddCoordinate(moveInputs, "Z", zMoveNumeric, 2);
             moveGroup.Margin = new Padding(0, 0, 10, 0);
             transformPanel.Controls.Add(moveGroup, 0, 0);
-            var rotationGroup = InputGroup("Rotation", 1);
+            var rotationGroup = InputGroup("Rotation about map centre", 1);
             rotationGroup.Margin = Padding.Empty;
             AddCoordinate((TableLayoutPanel)rotationGroup.Controls[0], "Z (degrees)", rotationNumeric, 0);
             transformPanel.Controls.Add(rotationGroup, 1, 0);
@@ -133,7 +133,7 @@ namespace Ymap_Ybn_Mover
             aboutRichTextBox.Dock = howToUseRichTextBox.Dock = DockStyle.Fill;
             closeAboutButton.Dock = howToUseCloseButton.Dock = DockStyle.Bottom;
             mainList.SizeChanged += (_, _) => UpdateListColumns();
-            howToUseRichTextBox.Text = "Add files or a folder, then enter a move offset and Z rotation in degrees. YMAP and YBN files rotate around the world's Z axis at X=0, Y=0 first, then move by the offset. Positive angles rotate counterclockwise viewed from above (+X toward +Y). Rotation does not change height. Use the same angle and offset for every file belonging to a map.\n\nYDR, YDD and YFT files are resaved through CodeWalker without moving or rotating their local model geometry. Leave the offset and rotation at zero to resave all formats.\n\nProcessing replaces each input file. 'Keep backups' is enabled by default and saves the previous file beside it as .bak (additional backups get unique names). Stop cancels the current file before replacement where possible and skips the remaining files. Completed files remain processed.\n\nUnsupported YMAP sections and save errors leave the original file unchanged. Hover over an error row to see its full message.";
+            howToUseRichTextBox.Text = "Add all files belonging to one map, then enter a move offset and Z rotation in degrees. YMAP and YBN files rotate around the map centre first, then move by the offset. The centre is calculated automatically from the combined entity bounds of all loaded YMAPs. If no usable YMAP bounds are available, it uses the placed collision shapes. Process Selected uses the same loaded map context. Positive angles rotate counterclockwise viewed from above (+X toward +Y). Rotation does not change height.\n\nYDR, YDD and YFT files are resaved through CodeWalker without moving or rotating their local model geometry. Leave the offset and rotation at zero to resave all formats.\n\nProcessing replaces each input file. 'Keep backups' is enabled by default and saves the previous file beside it as .bak (additional backups get unique names). Stop cancels the current file before replacement where possible and skips the remaining files. Completed files remain processed.\n\nUnsupported YMAP sections and save errors leave the original file unchanged. Hover over an error row to see its full message.";
             ResumeLayout(true);
             UpdateListColumns();
             LayoutOverlays();
@@ -363,8 +363,9 @@ namespace Ymap_Ybn_Mover
             if (cts != null) return;
             var selected = items.ToList();
             if (selected.Count == 0) return;
-            var transform = new MapTransform(new Vector3((float)xMoveNumeric.Value, (float)yMoveNumeric.Value, (float)zMoveNumeric.Value),
-                (float)rotationNumeric.Value);
+            var offset = new Vector3((float)xMoveNumeric.Value, (float)yMoveNumeric.Value, (float)zMoveNumeric.Value);
+            float degrees = (float)rotationNumeric.Value;
+            var contextFiles = mainList.Items.Cast<ListViewItem>().Select(item => item.SubItems[1].Text).ToArray();
             bool createBackup = backupCheckBox.Checked;
             cts = new CancellationTokenSource();
             var token = cts.Token;
@@ -373,12 +374,15 @@ namespace Ymap_Ybn_Mover
             stopButton.Enabled = true;
             var watch = Stopwatch.StartNew();
             int completed = 0, errors = 0;
+            bool preparing = true;
             foreach (var item in selected) UpdateListViewItem(item, Color.Blue, "Waiting");
             using var timer = new System.Windows.Forms.Timer { Interval = 100 };
-            timer.Tick += (_, _) => timeElapsedLabel.Text = $"{(token.IsCancellationRequested ? "Stopping" : "Processing")} | {completed} of {selected.Count} | {watch.Elapsed:mm\\:ss}";
+            timer.Tick += (_, _) => timeElapsedLabel.Text = $"{(token.IsCancellationRequested ? "Stopping" : preparing ? "Calculating map centre" : "Processing")} | {completed} of {selected.Count} | {watch.Elapsed:mm\\:ss}";
             timer.Start();
             try
             {
+                var transform = await MapBatch.CreateTransformAsync(contextFiles, offset, degrees, token);
+                preparing = false;
                 // CodeWalker has shared caches. One active conversion also bounds memory use
                 // and makes cancellation predictable when processing large directories.
                 foreach (var item in selected)
@@ -407,6 +411,19 @@ namespace Ymap_Ybn_Mover
                 if (token.IsCancellationRequested)
                     foreach (var item in selected.Where(item => item.SubItems[3].Text == "Waiting"))
                         UpdateListViewItem(item, Color.DarkOrange, "Skipped");
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                foreach (var item in selected.Where(item => item.SubItems[3].Text == "Waiting"))
+                    UpdateListViewItem(item, Color.DarkOrange, "Skipped");
+            }
+            catch (Exception ex)
+            {
+                foreach (var item in selected.Where(item => item.SubItems[3].Text == "Waiting"))
+                {
+                    errors++;
+                    UpdateListViewItem(item, Color.Red, "Error", "Could not calculate the shared map centre: " + ex.Message);
+                }
             }
             finally
             {
