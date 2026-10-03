@@ -8,8 +8,9 @@ internal static class Program
     private static int failures;
 
     [STAThread]
-    private static int Main()
+    private static int Main(string[] args)
     {
+        if (args.Length != 0) return AssetAudit.Run(args);
         Test("Z rotation around the world origin preserves height and precedes the offset", () =>
         {
             var transform = new MapTransform(new Vector3(10, 20, 30), 90);
@@ -17,6 +18,17 @@ internal static class Program
             Near(transform.Direction(Vector3.UnitX), Vector3.UnitY);
             Near(transform.Position(Vector3.Zero), transform.Offset);
             Near(new MapTransform(Vector3.Zero, -37).Position(new Vector3(4, -5, 9)).Z, 9);
+        });
+        Test("quarter turns are exact and reversible at map-sized coordinates", () =>
+        {
+            foreach (float angle in new[] { -270f, -180f, -90f, 90f, 180f, 270f })
+            {
+                var transform = new MapTransform(Vector3.Zero, angle);
+                var point = new Vector3(-2251.4854f, -623.3439f, 2.8722615f);
+                var restored = Vector3.TransformCoordinate(transform.Position(point), Matrix.Invert(transform.Matrix));
+                Check(restored == point, "quarter turn introduces coordinate drift");
+                Near(transform.Matrix.Determinant(), 1, 0);
+            }
         });
         Test("orientation composition with a tilted entity", () =>
         {
@@ -208,7 +220,7 @@ internal static class Program
             for (int i = 0; i < moved.Children.data_items.Length; i++)
                 if (moved.Children.data_items[i] is { } child)
                 {
-                    Near(child.BoxMin, original.Children.data_items[i].BoxMin);
+                    if (child is not BoundComposite) Near(child.BoxMin, original.Children.data_items[i].BoxMin);
                     var world = MapTransform.TransformBounds(child.BoxMin, child.BoxMax, child.Transform);
                     Check(world.Min.X >= moved.BoxMin.X - 0.01 && world.Max.X <= moved.BoxMax.X + 0.01, "root bounds do not enclose child");
                 }
@@ -237,6 +249,42 @@ internal static class Program
                     Rotation.Position(Vector3.TransformCoordinate(original.Vertices[i] + original.CenterGeom, original.Transform)), 0.003f);
             Check(actual.CompositeFlags1.Equals(original.CompositeFlags1) && actual.CompositeFlags2.Equals(original.CompositeFlags2), "collision filters changed");
             Near(Vector3.TransformCoordinate(Vector3.TransformCoordinate(Vector3.One, actual.Transform), actual.TransformInv), Vector3.One, 0.001f);
+        });
+        Test("off-center and unused mesh vertices survive packing, including shrunk vertices", () =>
+        {
+            foreach (var type in new[] { "Geometry", "GeometryBVH" })
+            {
+                var input = RoundTrip(GeometryFixture(type));
+                var mesh = (BoundGeometry)input.Bounds;
+                // Preserve polygon positions while moving the encoding origin.
+                // Half the polygon box width now cannot encode the raw vertices.
+                var shift = new Vector3(500, -250, 80);
+                mesh.CenterGeom -= shift;
+                mesh.Vertices = mesh.Vertices.Select(v => v + shift).Concat(new[] { new Vector3(900, -600, 300) }).ToArray();
+                if (type == "Geometry") mesh.VerticesShrunk = mesh.Vertices.Select(v => v - new Vector3(0.01f)).ToArray();
+                var expected = mesh.Vertices.Select(v => v + mesh.CenterGeom).ToArray();
+                var shrunk = mesh.VerticesShrunk?.ToArray();
+                var transform = new MapTransform(Vector3.Zero, 90);
+                GameFileTransformer.TransformYbn(input, transform);
+                var actual = (BoundGeometry)((BoundComposite)RoundTrip(input).Bounds).Children.data_items[0];
+                for (int i = 0; i < expected.Length; i++)
+                    Near(Vector3.TransformCoordinate(actual.Vertices[i] + actual.CenterGeom, actual.Transform), transform.Position(expected[i]), 0.04f);
+                if (shrunk != null)
+                    for (int i = 0; i < shrunk.Length; i++) Near(actual.VerticesShrunk[i], shrunk[i], 0.04f);
+            }
+        });
+        Test("resaving repairs stale outer bounds throughout a collision hierarchy", () =>
+        {
+            var nested = Composite(new[] { Primitive(BoundsType.Box) });
+            SetTransform(nested.Children.data_items[0], Matrix.Translation(20, 30, 40));
+            SetTransform(nested, Matrix.Translation(-5, 8, 2));
+            var input = new YbnFile { Bounds = Composite(new[] { nested }) };
+            GameFileTransformer.TransformYbn(input, new MapTransform(Vector3.Zero, 0));
+            var loaded = (BoundComposite)RoundTrip(input).Bounds;
+            Near(loaded.BoxMin, new Vector3(14, 36, 39));
+            Near(loaded.BoxMax, new Vector3(16, 40, 45));
+            Near(loaded.SphereCenter, new Vector3(15, 38, 42));
+            Check(loaded.SphereRadius >= Vector3.Distance(loaded.BoxMin, loaded.SphereCenter), "sphere does not enclose repaired box");
         });
         Test("atomic replacement retains originals and creates distinct backups", () => WithTemporaryDirectory(async directory =>
         {

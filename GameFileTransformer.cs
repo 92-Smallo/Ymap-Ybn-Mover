@@ -92,6 +92,7 @@ public static class GameFileTransformer
         var root = ybn.Bounds ?? throw new InvalidDataException("The YBN contains no bounds.");
         root = LocalSpaceBoundBvh.Prepare(root);
         ybn.Bounds = root;
+        RefreshCompositeBounds(root);
         if (transform.IsIdentity) return;
 
         if (root is not BoundComposite composite)
@@ -121,24 +122,36 @@ public static class GameFileTransformer
         if (children == null || !children.Any(child => child != null))
             throw new InvalidDataException("The collision composite contains no shapes.");
 
-        var min = new Vector3(float.MaxValue);
-        var max = new Vector3(float.MinValue);
         foreach (var child in children)
         {
             if (child == null) continue;
             // Do not recurse: nested geometry and shapes stay in their local frame.
             child.Transform *= transform.Matrix;
             child.TransformInv = Matrix.Invert(child.Transform);
-            var bounds = MapTransform.TransformBounds(child.BoxMin, child.BoxMax, child.Transform);
-            min = Vector3.Min(min, bounds.Min);
-            max = Vector3.Max(max, bounds.Max);
         }
+        RefreshCompositeBounds(composite);
+        // CodeWalker Save rebuilds child transforms, bounding boxes and composite BVH.
+    }
+
+    private static void RefreshCompositeBounds(Bounds bounds)
+    {
+        if (bounds is not BoundComposite composite) return;
+        var min = new Vector3(float.MaxValue);
+        var max = new Vector3(float.MinValue);
+        foreach (var child in composite.Children?.data_items ?? [])
+        {
+            if (child == null) continue;
+            RefreshCompositeBounds(child);
+            var box = MapTransform.TransformBounds(child.BoxMin, child.BoxMax, child.Transform);
+            min = Vector3.Min(min, box.Min);
+            max = Vector3.Max(max, box.Max);
+        }
+        if (min.X == float.MaxValue) return;
         composite.BoxMin = min;
         composite.BoxMax = max;
         composite.BoxCenter = (min + max) * 0.5f;
         composite.SphereCenter = composite.BoxCenter;
         composite.SphereRadius = (max - composite.BoxCenter).Length();
-        // CodeWalker Save rebuilds child transforms, bounding boxes and composite BVH.
     }
 
     private static void PrepareLodLights(YmapLODLights? lights, MapTransform transform)

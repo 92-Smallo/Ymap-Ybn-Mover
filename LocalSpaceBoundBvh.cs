@@ -20,9 +20,9 @@ internal sealed class LocalSpaceBoundBvh : BoundBVH
             for (int i = 0; i < children.Length; i++)
                 if (children[i] != null) children[i] = Prepare(children[i]);
         }
-        if (bounds is not BoundBVH geometry) return bounds;
-        if (geometry is LocalSpaceBoundBvh) return geometry;
-        var result = new LocalSpaceBoundBvh();
+        if (bounds is not BoundGeometry geometry) return bounds;
+        if (geometry is LocalSpaceBoundBvh or LocalSpaceBoundGeometry) return geometry;
+        BoundGeometry result = geometry is BoundBVH ? new LocalSpaceBoundBvh() : new LocalSpaceBoundGeometry();
         result.CopyFrom(geometry);
         result.Type = geometry.Type;
         result.Unknown_11h = geometry.Unknown_11h;
@@ -87,19 +87,22 @@ internal sealed class LocalSpaceBoundBvh : BoundBVH
         result.Materials = geometry.Materials;
         result.MaterialColours = geometry.MaterialColours;
         result.PolygonMaterialIndices = geometry.PolygonMaterialIndices;
-        result.BvhPointer = geometry.BvhPointer;
-        result.Unknown_138h = geometry.Unknown_138h;
-        result.Unknown_13Ch = geometry.Unknown_13Ch;
-        result.Unknown_140h = geometry.Unknown_140h;
-        result.Unknown_142h = geometry.Unknown_142h;
-        result.Unknown_144h = geometry.Unknown_144h;
-        result.Unknown_148h = geometry.Unknown_148h;
-        result.Unknown_14Ch = geometry.Unknown_14Ch;
-        result.BVH = geometry.BVH;
+        if (result is LocalSpaceBoundBvh target && geometry is BoundBVH source)
+        {
+            target.BvhPointer = source.BvhPointer;
+            target.Unknown_138h = source.Unknown_138h;
+            target.Unknown_13Ch = source.Unknown_13Ch;
+            target.Unknown_140h = source.Unknown_140h;
+            target.Unknown_142h = source.Unknown_142h;
+            target.Unknown_144h = source.Unknown_144h;
+            target.Unknown_148h = source.Unknown_148h;
+            target.Unknown_14Ch = source.Unknown_14Ch;
+            target.BVH = source.BVH;
+        }
         if (result.Polygons != null)
             foreach (var polygon in result.Polygons)
                 if (polygon != null) polygon.Owner = result;
-        result.BuildLocalBvh();
+        if (result is LocalSpaceBoundBvh bvh) bvh.BuildLocalBvh();
         return result;
     }
 
@@ -117,10 +120,30 @@ internal sealed class LocalSpaceBoundBvh : BoundBVH
     public override IResourceBlock[] GetReferences()
     {
         var placement = Transform;
+        var originalQuantum = Quantum;
         try
         {
             Transform = Matrix.Identity;
-            return base.GetReferences();
+            var references = base.GetReferences();
+            CollisionVertexPacking.Repack(this, originalQuantum, references);
+            return references;
+        }
+        finally { Transform = placement; }
+    }
+}
+
+internal sealed class LocalSpaceBoundGeometry : BoundGeometry
+{
+    public override IResourceBlock[] GetReferences()
+    {
+        var placement = Transform;
+        var originalQuantum = Quantum;
+        try
+        {
+            Transform = Matrix.Identity;
+            var references = base.GetReferences();
+            CollisionVertexPacking.Repack(this, originalQuantum, references);
+            return references;
         }
         finally { Transform = placement; }
     }

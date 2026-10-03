@@ -14,7 +14,7 @@ Download the [latest release](https://github.com/92-Smallo/Ymap-Ybn-Mover/releas
 
 The transformation is `newPosition = Rz(angle) * position + offset`: rotate around the world origin first, then translate. For example, rotating `(12, 20, 3)` by +90 degrees gives `(-20, 12, 3)` before the move offset is added. There are no pivot inputs.
 
-Collision shapes retain their local geometry. The tool changes composite child transforms and rebuilds their lookup data through CodeWalker, including meshes, primitive bounds, existing transformed children and nested composites. A standalone collision root is wrapped in a composite so its placement can be stored in the game format.
+Collision shapes retain their local geometry. The tool changes composite child transforms and rebuilds their lookup data through CodeWalker, including meshes, primitive bounds, existing transformed children and nested composites. Vertex packing covers every raw and shrunk vertex, including meshes whose geometry center differs from the bounding-box midpoint. Outer collision bounds are recalculated from the children, including during zero-offset resaves. A standalone collision root is wrapped in a composite so its placement can be stored in the game format. Quarter turns use exact rotation matrices.
 
 YMAP transformations include entity and MLO instance placement, car-generator headings, distant light positions, LOD light directions, grass positions/normals, timecycle bounds and occlusion data. Streaming/entity bounds are transformed using all eight corners. Timecycle volumes remain axis-aligned, so arbitrary rotation produces an enclosing box. Packed grass coordinates and occluder coordinates have the precision limits of the game format.
 
@@ -51,6 +51,14 @@ dotnet run --project tests/RegressionTests -c Release '-p:CodeWalkerCorePath=C:\
 ```
 
 The regression runner needs no test-framework packages. It returns a nonzero exit code on failure and checks serialized YMAP/YBN transformations, local collision BVHs, nested/scaled placement, collision filters, model-format resaves, backups and cancellation. Run it whenever the CodeWalker dependency changes. [REVIEW.md](REVIEW.md) records the findings and remaining validation work.
+
+To check local map fixtures without modifying their originals:
+
+```powershell
+dotnet run --project tests/RegressionTests -c Release -- 'E:\testMap\files' artifacts/collision-audit
+```
+
+This optional audit saves separate collision outputs for resaving, +37°, +90°, -90° and +90° with an offset. It compares all mesh vertices, polygon materials, collision filters, enclosing bounds and sampled local collision ray hits after serialization. It also checks YMAP entity positions/orientations at +90°. An optional third directory argument compares previous +90° outputs. Game assets are not included in the repository.
 
 To make a portable framework-dependent build:
 

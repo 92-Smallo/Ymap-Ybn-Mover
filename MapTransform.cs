@@ -5,6 +5,7 @@ namespace Ymap_Ybn_Mover;
 /// <summary>Rotate around the world's Z axis, then translate.</summary>
 public sealed class MapTransform
 {
+    private readonly Matrix rotationMatrix;
     public Vector3 Offset { get; }
     public Quaternion Rotation { get; }
     public Matrix Matrix { get; }
@@ -21,16 +22,25 @@ public sealed class MapTransform
         HasRotation = degrees != 0;
         Rotation = HasRotation ? Quaternion.RotationAxis(Vector3.UnitZ, MathUtil.DegreesToRadians(degrees)) : Quaternion.Identity;
         // SharpDX uses row vectors: local * existingTransform * worldTransform.
-        Matrix = SharpDX.Matrix.RotationQuaternion(Rotation);
-        Matrix *= SharpDX.Matrix.Translation(offset);
+        rotationMatrix = SharpDX.Matrix.RotationQuaternion(Rotation);
+        // Exact quarter turns avoid introducing tiny shear/scale errors at map-sized
+        // coordinates when a world ray or vertex is transformed back to local space.
+        if (degrees % 90 == 0)
+        {
+            rotationMatrix.M11 = MathF.Round(rotationMatrix.M11);
+            rotationMatrix.M12 = MathF.Round(rotationMatrix.M12);
+            rotationMatrix.M21 = MathF.Round(rotationMatrix.M21);
+            rotationMatrix.M22 = MathF.Round(rotationMatrix.M22);
+        }
+        Matrix = rotationMatrix * SharpDX.Matrix.Translation(offset);
     }
 
     public Vector3 Position(Vector3 position) => HasRotation
-        ? Vector3.TransformCoordinate(position, SharpDX.Matrix.RotationQuaternion(Rotation)) + Offset
+        ? Vector3.TransformCoordinate(position, rotationMatrix) + Offset
         : position + Offset;
 
     public Vector3 Direction(Vector3 direction) => HasRotation
-        ? Vector3.TransformNormal(direction, SharpDX.Matrix.RotationQuaternion(Rotation))
+        ? Vector3.TransformNormal(direction, rotationMatrix)
         : direction;
 
     public Quaternion Orientation(Quaternion orientation) => HasRotation
