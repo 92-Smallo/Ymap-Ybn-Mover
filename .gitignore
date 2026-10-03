@@ -361,3 +361,8 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Supply the CodeWalker dependency locally; do not vendor game-format binaries.
+lib/*.dll
+lib/*.pdb
+artifacts/

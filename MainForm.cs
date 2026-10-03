@@ -1,576 +1,466 @@
 using Internal_Functions;
 using CodeWalker.GameFiles;
-using Color = System.Drawing.Color;
-using Vector3 = SharpDX.Vector3;
-using Vector4 = SharpDX.Vector4;
-using Newtonsoft.Json.Linq;
 using System.Diagnostics;
+using System.Globalization;
+using System.Text.Json;
+using Vector3 = SharpDX.Vector3;
+using Color = System.Drawing.Color;
 
 namespace Ymap_Ybn_Mover
 {
     public partial class MainForm : Form
     {
-        public DateTime timerTime = DateTime.Now;
-        public bool interrupt = false;
-        public int totalFiles;
-        public int currentFile;
-        private Vector3 offsetVec = new();
+        private Vector3 offsetVec;
         private readonly List<Control> aboutControls = new();
         private readonly List<Control> howToControls = new();
         private readonly List<Control> vecDiffControls = new();
-        private CancellationTokenSource cts;
+        private CancellationTokenSource? cts;
+        private bool closeAfterProcessing;
+        private readonly NumericUpDown rotationNumeric = CoordinateInput(360, -360);
+        private readonly TableLayoutPanel transformPanel = new() { Name = "transformPanel" };
+        private readonly CheckBox backupCheckBox = new() { Text = "Keep backups", Checked = true, AutoSize = true };
+        private readonly Dictionary<GroupBox, Size> overlaySizes = new();
 
-        public MainForm()
+        public MainForm() : this(true) { }
+
+        public MainForm(bool checkForUpdates)
         {
+            Font = new Font("Segoe UI", 9f);
             InitializeComponent();
-
+            foreach (var group in new[] { aboutGroupBox, howToUseGroupBox, vecDiffGroupBox }) overlaySizes.Add(group, group.Size);
             typeof(ListView).InvokeMember("DoubleBuffered",
-        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.SetProperty,
-        null, mainList, new object[] { true });
-
-            typeof(StatusStrip).InvokeMember("DoubleBuffered",
-        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.SetProperty,
-        null, mainList, new object[] { true });
-
-            CheckForIllegalCrossThreadCalls = false;
-            int mainListWidth = mainList.Width / 100;
-            mainList.Columns[0].Width = mainListWidth * 20;
-            mainList.Columns[1].Width = mainListWidth * 68;
-            mainList.Columns[2].Width = mainListWidth * 20;
-            CheckForUpdate();
-
-            aboutControls.AddRange(new List<Control>() { aboutGroupBox, aboutRichTextBox, closeAboutButton });
-            howToControls.AddRange(new List<Control>() { howToUseCloseButton, howToUseGroupBox, howToUseRichTextBox });
-            vecDiffControls.AddRange(new List<Control>() { vecDiffGroupBox, vecDiffCloseButton, CalculateButton, CentreButton, InputButton, InvertButton,
-                                                         newOffset, vector1, vector2, CalculatedLabel, OGLocLabel, newLocLabel, InstructionsLabel });
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.SetProperty,
+                null, mainList, new object[] { true });
+            mainList.Columns.Add("Status", 190);
+            mainList.ShowItemToolTips = true;
+            aboutControls.AddRange(new Control[] { aboutGroupBox, aboutRichTextBox, closeAboutButton });
+            howToControls.AddRange(new Control[] { howToUseCloseButton, howToUseGroupBox, howToUseRichTextBox });
+            vecDiffControls.AddRange(new Control[] { vecDiffGroupBox, vecDiffCloseButton, CalculateButton, CentreButton, InputButton, InvertButton,
+                newOffset, vector1, vector2, CalculatedLabel, OGLocLabel, newLocLabel, InstructionsLabel });
+            ConfigureTransformControls();
+            Resize += (_, _) => LayoutOverlays();
+            if (checkForUpdates) Shown += async (_, _) => await CheckForUpdateAsync();
+            FormClosing += (_, e) =>
+            {
+                if (cts == null) return;
+                closeAfterProcessing = true;
+                cts.Cancel();
+                e.Cancel = true;
+                timeElapsedLabel.Text = "Stopping before closing...";
+            };
         }
 
-        private static void CheckForUpdate(bool manualCheck = false)
+        private static NumericUpDown CoordinateInput(decimal maximum = 100000, decimal minimum = -100000) => new()
         {
-            string repoUrl = "https://api.github.com/repos/92-Smallo/Ymap-Ybn-Mover/releases/latest";
+            DecimalPlaces = 3, Maximum = maximum, Minimum = minimum, Size = new Size(120, 23)
+        };
 
-            using (HttpClient client = new())
+        private void ConfigureTransformControls()
+        {
+            SuspendLayout();
+            FormBorderStyle = FormBorderStyle.Sizable;
+            MaximizeBox = true;
+            MinimumSize = new Size(820, 540);
+            ClientSize = new Size(1040, 620);
+            var layout = new TableLayoutPanel
             {
-                client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (compatible; AcmeInc/1.0)");
+                Name = "mainLayout", Dock = DockStyle.Fill, Padding = new Padding(12),
+                ColumnCount = 1, RowCount = 4
+            };
+            layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            layout.Controls.Add(new Label
+            {
+                Text = "Load one map's files. YMAP / YBN files rotate about its centre and move; models are resaved.",
+                AutoSize = true, ForeColor = SystemColors.GrayText, Margin = new Padding(0, 0, 0, 8)
+            }, 0, 0);
+            mainList.Dock = DockStyle.Fill;
+            mainList.Margin = new Padding(0, 0, 0, 12);
+            layout.Controls.Add(mainList, 0, 1);
 
-                try
-                {
-                    HttpResponseMessage response = client.GetAsync(repoUrl).Result;
-                    response.EnsureSuccessStatusCode();
+            // Layout containers measure each label/input instead of using designer pixel
+            // coordinates. This keeps the footer aligned at different fonts and DPI.
+            transformPanel.Dock = DockStyle.Fill;
+            transformPanel.AutoSize = true;
+            transformPanel.ColumnCount = 2;
+            transformPanel.RowCount = 1;
+            transformPanel.Margin = new Padding(0, 0, 0, 10);
+            transformPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 70));
+            transformPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 30));
+            var moveGroup = InputGroup("Move offset", 3);
+            var moveInputs = (TableLayoutPanel)moveGroup.Controls[0];
+            AddCoordinate(moveInputs, "X", xMoveNumeric, 0);
+            AddCoordinate(moveInputs, "Y", yMoveNumeric, 1);
+            AddCoordinate(moveInputs, "Z", zMoveNumeric, 2);
+            moveGroup.Margin = new Padding(0, 0, 10, 0);
+            transformPanel.Controls.Add(moveGroup, 0, 0);
+            var rotationGroup = InputGroup("Rotation about map centre", 1);
+            rotationGroup.Margin = Padding.Empty;
+            AddCoordinate((TableLayoutPanel)rotationGroup.Controls[0], "Z (degrees)", rotationNumeric, 0);
+            transformPanel.Controls.Add(rotationGroup, 1, 0);
+            layout.Controls.Add(transformPanel, 0, 2);
 
-                    string responseBody = response.Content.ReadAsStringAsync().Result;
-                    dynamic release = JObject.Parse(responseBody);
-                    string latestVersion = release.tag_name;
-                    string localVersion = "1.0.6";
-
-                    if (latestVersion != localVersion)
-                    {
-                        DialogResult result = MessageBox.Show($"A newer version ({latestVersion}) is available. Do you want to download it?\n\nChanges:\n{release.body}", "Update Available", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-
-                        if (result == DialogResult.Yes)
-                        {
-                            string url = release.assets[0].browser_download_url;
-                            Process.Start("explorer.exe", url);
-                            MessageBox.Show("New version downloaded, please close the program and overwrite your existing version with the new files.", "Update", MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
-                        }
-                    }
-                    else
-                    {
-                        if (manualCheck)
-                            MessageBox.Show("You have the latest version.", "Up to Date", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
+            var actions = new TableLayoutPanel
+            {
+                Name = "actionsPanel", Dock = DockStyle.Fill, AutoSize = true,
+                ColumnCount = 5, RowCount = 1, Margin = Padding.Empty
+            };
+            for (int i = 0; i < 3; i++) actions.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            actions.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            actions.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            var buttons = new[] { processAllButton, processSelectedButton, stopButton };
+            for (int i = 0; i < buttons.Length; i++)
+            {
+                buttons[i].AutoSize = true;
+                buttons[i].MinimumSize = new Size(112, 32);
+                buttons[i].Margin = new Padding(0, 0, 8, 0);
+                buttons[i].Anchor = AnchorStyles.Left;
+                actions.Controls.Add(buttons[i], i, 0);
             }
+            backupCheckBox.Anchor = AnchorStyles.Right;
+            backupCheckBox.Margin = new Padding(8, 0, 0, 0);
+            actions.Controls.Add(backupCheckBox, 4, 0);
+            layout.Controls.Add(actions, 0, 3);
+            xMoveLabel.Visible = yMoveLabel.Visible = zMoveLabel.Visible = false;
+            Controls.Add(layout);
+            layout.BringToFront();
+            aboutGroupBox.BringToFront();
+            howToUseGroupBox.BringToFront();
+            vecDiffGroupBox.BringToFront();
+            aboutRichTextBox.Dock = howToUseRichTextBox.Dock = DockStyle.Fill;
+            closeAboutButton.Dock = howToUseCloseButton.Dock = DockStyle.Bottom;
+            mainList.SizeChanged += (_, _) => UpdateListColumns();
+            howToUseRichTextBox.Text = "Add all files belonging to one map, then enter a move offset and Z rotation in degrees. YMAP and YBN files rotate around the map centre first, then move by the offset. The centre is calculated automatically from the combined entity bounds of all loaded YMAPs. If no usable YMAP bounds are available, it uses the placed collision shapes. Process Selected uses the same loaded map context. Positive angles rotate counterclockwise viewed from above (+X toward +Y). Rotation does not change height.\n\nYDR, YDD and YFT files are resaved through CodeWalker without moving or rotating their local model geometry. Leave the offset and rotation at zero to resave all formats.\n\nProcessing replaces each input file. 'Keep backups' is enabled by default and saves the previous file beside it as .bak (additional backups get unique names). Stop cancels the current file before replacement where possible and skips the remaining files. Completed files remain processed.\n\nUnsupported YMAP sections and save errors leave the original file unchanged. Hover over an error row to see its full message.";
+            ResumeLayout(true);
+            UpdateListColumns();
+            LayoutOverlays();
+        }
+
+        private static GroupBox InputGroup(string title, int coordinateCount)
+        {
+            var group = new GroupBox
+            {
+                Text = title, Dock = DockStyle.Fill, AutoSize = true,
+                Padding = new Padding(12, 8, 12, 12)
+            };
+            var inputs = new TableLayoutPanel
+            {
+                Dock = DockStyle.Fill, AutoSize = true, ColumnCount = coordinateCount * 2,
+                RowCount = 1, Margin = Padding.Empty
+            };
+            for (int i = 0; i < coordinateCount; i++)
+            {
+                inputs.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+                inputs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / coordinateCount));
+            }
+            group.Controls.Add(inputs);
+            return group;
+        }
+
+        private void AddCoordinate(TableLayoutPanel inputs, string label, NumericUpDown input, int index)
+        {
+            inputs.Controls.Add(new Label
+            {
+                Text = label, AutoSize = true, Anchor = AnchorStyles.Left,
+                Margin = new Padding(index == 0 ? 0 : 12, 0, 8, 0)
+            }, index * 2, 0);
+            input.ResetFont();
+            input.Dock = DockStyle.Fill;
+            input.TextAlign = HorizontalAlignment.Right;
+            input.Margin = Padding.Empty;
+            inputs.Controls.Add(input, index * 2 + 1, 0);
+        }
+
+        private void UpdateListColumns()
+        {
+            float scale = mainList.DeviceDpi / 96f;
+            mainList.Columns[0].Width = (int)(160 * scale);
+            mainList.Columns[2].Width = (int)(80 * scale);
+            mainList.Columns[3].Width = (int)(190 * scale);
+            mainList.Columns[1].Width = Math.Max((int)(120 * scale), mainList.ClientSize.Width -
+                mainList.Columns[0].Width - mainList.Columns[2].Width - mainList.Columns[3].Width - SystemInformation.VerticalScrollBarWidth - 4);
+        }
+
+        private async Task CheckForUpdateAsync(bool manualCheck = false)
+        {
+            checkForUpdateToolStripMenuItem.Enabled = false;
+            try
+            {
+                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+                client.DefaultRequestHeaders.UserAgent.ParseAdd("Ymap-Ybn-Mover/1.1.0");
+                string body = await client.GetStringAsync("https://api.github.com/repos/92-Smallo/Ymap-Ybn-Mover/releases/latest");
+                if (IsDisposed || Disposing || closeAfterProcessing) return;
+                using var document = JsonDocument.Parse(body);
+                var release = document.RootElement;
+                string tag = release.GetProperty("tag_name").GetString() ?? "";
+                var versionText = tag.TrimStart('v', 'V').Split('-')[0];
+                var localVersion = typeof(MainForm).Assembly.GetName().Version ?? new Version(1, 1, 0);
+                if (Version.TryParse(versionText, out var latestVersion) && latestVersion > new Version(localVersion.Major, localVersion.Minor, Math.Max(localVersion.Build, 0)))
+                {
+                    string changes = release.TryGetProperty("body", out var notes) ? notes.GetString() ?? "" : "";
+                    if (MessageBox.Show(this, $"Version {tag} is available. Open the release page?\n\n{changes}", "Update available", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
+                        Process.Start(new ProcessStartInfo("https://github.com/92-Smallo/Ymap-Ybn-Mover/releases/latest") { UseShellExecute = true });
+                }
+                else if (manualCheck)
+                    MessageBox.Show(this, "No newer release is available.", "Update check", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                if (manualCheck && !IsDisposed)
+                    MessageBox.Show(this, $"Could not check for updates: {ex.Message}", "Update check", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            finally { if (!IsDisposed) checkForUpdateToolStripMenuItem.Enabled = true; }
         }
 
         private void AddFiles(string[] fileList)
         {
+            if (cts != null) return;
             var fileTypes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
-                { ".ymap", "YMAP Files" },
-                { ".ybn", "YBN Files" },
-                { ".ydr", "YDR Files" },
-                { ".ydd", "YDD Files" },
-                { ".yft", "YFT Files" }
+                { ".ymap", "YMAP Files" }, { ".ybn", "YBN Files" }, { ".ydr", "YDR Files" },
+                { ".ydd", "YDD Files" }, { ".yft", "YFT Files" }
             };
-
-            var groupLookup = mainList.Groups.Cast<ListViewGroup>().ToDictionary(g => g.Header, g => g);
-
-            var itemsToAdd = new List<ListViewItem>();
-
+            var groups = mainList.Groups.Cast<ListViewGroup>().ToDictionary(g => g.Header, g => g);
+            var existing = mainList.Items.Cast<ListViewItem>().Select(item => item.SubItems[1].Text).ToHashSet(StringComparer.OrdinalIgnoreCase);
             mainList.BeginUpdate();
-            foreach (string file in fileList)
-            {
-                string extension = Path.GetExtension(file);
-
-                if (fileTypes.TryGetValue(extension, out string groupName))
-                {
-                    if (groupLookup.TryGetValue(groupName, out ListViewGroup group))
-                    {
-                        if (!StringFunctions.DoesEntryExist(file, mainList))
-                        {
-                            var item = CreateListEntry(extension, file, group);
-                            itemsToAdd.Add(item);
-                        }
-                    }
-                }
-            }
-
-            mainList.Items.AddRange(itemsToAdd.ToArray());
-            mainList.EndUpdate();
-        }
-
-
-        private ListViewItem CreateListEntry(string fileType, string file, ListViewGroup group)
-        {
-            long fileSize = 0;
             try
             {
-                fileSize = new FileInfo(file).Length;
+                foreach (string input in fileList)
+                {
+                    string file = Path.GetFullPath(input);
+                    if (!fileTypes.TryGetValue(Path.GetExtension(file), out var groupName) || !existing.Add(file)) continue;
+                    long size = 0;
+                    try { size = new FileInfo(file).Length; } catch (IOException) { } catch (UnauthorizedAccessException) { }
+                    var item = new ListViewItem(Path.GetFileNameWithoutExtension(file), 0, groups[groupName]) { UseItemStyleForSubItems = false };
+                    item.SubItems.AddRange(new[] { file, $"{size / 1000} KB", "Waiting" });
+                    mainList.Items.Add(item);
+                }
             }
-            catch (Exception) { }
-
-            var tempViewItem = new ListViewItem(Path.GetFileNameWithoutExtension(file), 0, group)
-            {
-                SubItems = { file, $"{fileSize / 1000} KB", new ListViewItem.ListViewSubItem() { Text = "Waiting", ForeColor = Color.Blue, Font = new Font(Font, FontStyle.Bold) } },
-                UseItemStyleForSubItems = false
-            };
-
-            return tempViewItem;
+            finally { mainList.EndUpdate(); }
         }
 
-
-        private void ExitToolStripMenuItem_Click(object sender, EventArgs e)
+        private Vector3 GetSelectedMapCentre()
         {
-            Close();
-            Application.Exit();
-            Application.ExitThread();
+            var selected = mainList.SelectedItems.Cast<ListViewItem>()
+                .Where(item => Path.GetExtension(item.SubItems[1].Text).Equals(".ymap", StringComparison.OrdinalIgnoreCase)).ToList();
+            if (selected.Count == 0) throw new InvalidOperationException("Select at least one YMAP file to calculate the map centre.");
+            var min = new Vector3(float.MaxValue);
+            var max = new Vector3(float.MinValue);
+            foreach (var item in selected)
+            {
+                var ymap = new YmapFile();
+                ymap.Load(File.ReadAllBytes(item.SubItems[1].Text));
+                min = Vector3.Min(min, ymap.CMapData.entitiesExtentsMin);
+                max = Vector3.Max(max, ymap.CMapData.entitiesExtentsMax);
+            }
+            return MathFunctions.GetCentre(min, max);
+        }
+
+        private void CentreButton_Click(object sender, EventArgs e)
+        {
+            try { vector1.Text = FormatVector(GetSelectedMapCentre()); }
+            catch (Exception ex) { MessageBox.Show(this, ex.Message, "Map centre", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        }
+
+        private static string FormatVector(Vector3 vector) => string.Create(CultureInfo.InvariantCulture, $"{vector.X}, {vector.Y}, {vector.Z}");
+
+        private static Vector3 ParseVector(string text)
+        {
+            var parts = text.Split(',');
+            if (parts.Length != 3) throw new FormatException("Enter three coordinates as X, Y, Z, using a dot for decimals.");
+            var vector = MathFunctions.CreateVectorFromStrings(parts[0], parts[1], parts[2]);
+            if (!float.IsFinite(vector.X) || !float.IsFinite(vector.Y) || !float.IsFinite(vector.Z)) throw new FormatException("Coordinates must be finite numbers.");
+            return vector;
+        }
+
+        private void CalculateButton_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                offsetVec = ParseVector(vector2.Text) - ParseVector(vector1.Text);
+                newOffset.Text = FormatVector(offsetVec);
+            }
+            catch (Exception ex) { MessageBox.Show(this, ex.Message, "Invalid vector", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
         }
 
         private void InputButton_Click(object sender, EventArgs e)
         {
+            if (offsetVec.X < (float)xMoveNumeric.Minimum || offsetVec.X > (float)xMoveNumeric.Maximum ||
+                offsetVec.Y < (float)yMoveNumeric.Minimum || offsetVec.Y > (float)yMoveNumeric.Maximum ||
+                offsetVec.Z < (float)zMoveNumeric.Minimum || offsetVec.Z > (float)zMoveNumeric.Maximum)
+            {
+                MessageBox.Show(this, "The calculated offset exceeds the input range.", "Offset", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
             xMoveNumeric.Value = (decimal)offsetVec.X;
             yMoveNumeric.Value = (decimal)offsetVec.Y;
             zMoveNumeric.Value = (decimal)offsetVec.Z;
         }
 
-        private void CentreButton_Click(object sender, EventArgs e)
-        {
-            List<Vector3> vectors = new();
-            ListView.SelectedListViewItemCollection selectedFiles = mainList.SelectedItems;
-            if (selectedFiles.Count == 0)
-            {
-                MessageBox.Show("You don't have any maps selected.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-
-            foreach (ListViewItem item in selectedFiles)
-            {
-                YmapFile ymap = new();
-                ymap.Load(File.ReadAllBytes(item.SubItems[1].Text));
-                vectors.Add(MathFunctions.GetCentre(ymap.CMapData.entitiesExtentsMin, ymap.CMapData.entitiesExtentsMax));
-            }
-
-            Vector3 centerPoint = MathFunctions.GetCentreFromList(vectors);
-            vector1.Text = centerPoint.X + ", " + centerPoint.Y + ", " + centerPoint.Z;
-        }
-
-        private void CalculateButton_Click(object sender, EventArgs e)
-        {
-            if (!string.IsNullOrEmpty(vector1.Text) || !string.IsNullOrEmpty(vector2.Text))
-            {
-                try
-                {
-                    string[] OldLocSplit = vector1.Text.Split(',');
-                    string[] NewLocSplit = vector2.Text.Split(',');
-
-                    offsetVec = new Vector3(float.Parse(NewLocSplit[0]), float.Parse(NewLocSplit[1]), float.Parse(NewLocSplit[2])) - new Vector3(float.Parse(OldLocSplit[0]), float.Parse(OldLocSplit[1]), float.Parse(OldLocSplit[2]));
-                    newOffset.Text = offsetVec.X.ToString() + ", " + offsetVec.Y.ToString() + ", " + offsetVec.Z.ToString();
-                }
-                catch (Exception)
-                {
-                    MessageBox.Show("The vectors don't appear to be in the correct format.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-            }
-        }
-
-        private void AddFilesToolStripMenuItem_Click_1(object sender, EventArgs e)
-        {
-            if (openFileDialog1.ShowDialog(this) == DialogResult.OK)
-                AddFiles(openFileDialog1.FileNames);
-        }
-
         private async void AddFolderToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            if (mainFolderDialog.ShowDialog(this) == DialogResult.OK)
+            if (mainFolderDialog.ShowDialog(this) != DialogResult.OK) return;
+            string folder = mainFolderDialog.SelectedPath;
+            fileToolStripMenuItem.Enabled = processAllButton.Enabled = processSelectedButton.Enabled = false;
+            try
             {
-                timeElapsedLabel.Text = "";
-                HashSet<string> fileExtensions = new(StringComparer.OrdinalIgnoreCase) { ".ymap", ".ybn", ".ydr", ".ydd", ".yft" };
-                var options = new EnumerationOptions() { IgnoreInaccessible = true, RecurseSubdirectories = true };
-                List<string> files = new();
-
-                await Task.Run(() =>
-                {
-                    Parallel.ForEach(Directory.EnumerateFiles(mainFolderDialog.SelectedPath, "*", options), file =>
-                    {
-                        if (fileExtensions.Contains(Path.GetExtension(file)))
-                        {
-                            lock (files)
-                            {
-                                files.Add(file);
-                            }
-                        }
-                    });
-                });
-
-                if (files.Count == 0)
-                {
-                    MessageBox.Show("No files found.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
-                }
-
-                AddFiles(files.ToArray());
+                var extensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".ymap", ".ybn", ".ydr", ".ydd", ".yft" };
+                var files = await Task.Run(() => Directory.EnumerateFiles(folder, "*",
+                    new EnumerationOptions { IgnoreInaccessible = true, RecurseSubdirectories = true })
+                    .Where(file => extensions.Contains(Path.GetExtension(file))).ToArray());
+                if (IsDisposed) return;
+                if (files.Length == 0) MessageBox.Show(this, "No supported files found.", "Add folder", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                AddFiles(files);
             }
+            catch (Exception ex) { if (!IsDisposed) MessageBox.Show(this, ex.Message, "Add folder", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            finally { if (!IsDisposed) fileToolStripMenuItem.Enabled = processAllButton.Enabled = processSelectedButton.Enabled = true; }
         }
-
 
         private void MainListDragEnter(object sender, DragEventArgs e)
         {
-            if (e.Data == null)
-                return;
-
-            if (!e.Data.GetDataPresent(DataFormats.FileDrop))
-                return;
-
-            e.Effect = DragDropEffects.Copy;
+            if (cts == null && e.Data?.GetDataPresent(DataFormats.FileDrop) == true) e.Effect = DragDropEffects.Copy;
         }
 
         private void MainListDragDrop(object sender, DragEventArgs e)
         {
-            List<string> fileTypes = new() { ".ymap", ".ybn", ".ydr", ".ydd", ".yft" };
-            string[]? files = e.Data?.GetData(DataFormats.FileDrop) as string[];
-            List<string> allFiles = new();
-
-            for (int i = 0; i < files?.Length; i++)
-            {
-                string file = files[i];
-                foreach (string fileType in fileTypes)
-                {
-                    if (file.EndsWith(fileType))
-                        allFiles.Add(file);
-                }
-
-            }
-
-            AddFiles(allFiles.ToArray());
+            if (e.Data?.GetData(DataFormats.FileDrop) is string[] files) AddFiles(files);
         }
 
         private void ClearFilesToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            mainList.BeginUpdate();
-            timeElapsedLabel.Text = "";
             mainList.Items.Clear();
-            mainList.EndUpdate();
+            timeElapsedLabel.Text = "";
         }
 
         private void ClearSelectedFilesToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            mainList.BeginUpdate();
-            foreach (ListViewItem item in mainList.Items)
-            {
-                if (item.Selected)
-                    item.Remove();
-            }
-            mainList.EndUpdate();
+            foreach (var item in mainList.SelectedItems.Cast<ListViewItem>().ToArray()) item.Remove();
         }
 
-        private static void ToggleControlVisibility(List<Control> controls, bool visible)
+        private void ToggleControlVisibility(List<Control> controls, bool visible)
         {
-            foreach (Control control in controls)
-                control.Visible = visible;
+            foreach (var control in controls) control.Visible = visible;
+            LayoutOverlays();
         }
 
-        public void TimerTick(object info)
+        private void LayoutOverlays()
         {
-            DateTime currentTime = DateTime.Now;
-            TimeSpan t = TimeSpan.FromMilliseconds((currentTime - timerTime).TotalMilliseconds);
-
-            if (interrupt)
+            int availableHeight = ClientSize.Height - mainMenuStrip.Height - mainStatusStrip.Height;
+            foreach (var (group, preferred) in overlaySizes)
             {
-                timeElapsedLabel.Text = string.Format("Stopped | Time Elapsed: {0:D2}m:{1:D2}s:{2:D3}ms | File {3} of {4}", t.Minutes, t.Seconds, t.Milliseconds, currentFile, totalFiles);
-            }
-            else
-            {
-                timeElapsedLabel.Text = string.Format("Time Elapsed: {0:D2}m:{1:D2}s:{2:D3}ms | File {3} of {4}", t.Minutes, t.Seconds, t.Milliseconds, currentFile, totalFiles);
+                int width = Math.Min(preferred.Width, ClientSize.Width - 32);
+                int height = Math.Min(preferred.Height, availableHeight - 32);
+                group.Bounds = new Rectangle((ClientSize.Width - width) / 2,
+                    mainMenuStrip.Height + (availableHeight - height) / 2, width, height);
             }
         }
 
-        private async void ProcessFiles(IEnumerable<ListViewItem> items)
+        private async Task ProcessFilesAsync(IEnumerable<ListViewItem> items)
         {
+            if (cts != null) return;
+            var selected = items.ToList();
+            if (selected.Count == 0) return;
+            var offset = new Vector3((float)xMoveNumeric.Value, (float)yMoveNumeric.Value, (float)zMoveNumeric.Value);
+            float degrees = (float)rotationNumeric.Value;
+            var contextFiles = mainList.Items.Cast<ListViewItem>().Select(item => item.SubItems[1].Text).ToArray();
+            bool createBackup = backupCheckBox.Checked;
             cts = new CancellationTokenSource();
-            int fileCount = 0;
-            processAllButton.Enabled = false;
-            processSelectedButton.Enabled = false;
+            var token = cts.Token;
+            processAllButton.Enabled = processSelectedButton.Enabled = fileToolStripMenuItem.Enabled = editToolStripMenuItem.Enabled = false;
+            SetTransformControlsEnabled(false);
             stopButton.Enabled = true;
-            timerTime = DateTime.Now;
-            System.Threading.Timer watch = new(TimerTick, null, 0, 10);
-            Vector3 moveVector = new((float)xMoveNumeric.Value, (float)yMoveNumeric.Value, (float)zMoveNumeric.Value);
-            var itemsList = items.ToList();
-            var tasks = new List<Task>();
-            totalFiles = itemsList.Count;
-
+            var watch = Stopwatch.StartNew();
+            int completed = 0, errors = 0;
+            bool preparing = true;
+            foreach (var item in selected) UpdateListViewItem(item, Color.Blue, "Waiting");
+            using var timer = new System.Windows.Forms.Timer { Interval = 100 };
+            timer.Tick += (_, _) => timeElapsedLabel.Text = $"{(token.IsCancellationRequested ? "Stopping" : preparing ? "Calculating map centre" : "Processing")} | {completed} of {selected.Count} | {watch.Elapsed:mm\\:ss}";
+            timer.Start();
             try
             {
-                tasks = itemsList.Select(item => Task.Run(async () =>
+                var transform = await MapBatch.CreateTransformAsync(contextFiles, offset, degrees, token);
+                preparing = false;
+                // CodeWalker has shared caches. One active conversion also bounds memory use
+                // and makes cancellation predictable when processing large directories.
+                foreach (var item in selected)
                 {
-                    fileCount++;
-                    currentFile = fileCount;
-
-                    if (cts.Token.IsCancellationRequested)
-                    {   
-                        watch.Dispose();
-                        return;
-                    }
-
-                    mainList.Invoke(() => mainList.EnsureVisible(item.Index));
-
-                    string filename = item.SubItems[1].Text;
-
+                    if (token.IsCancellationRequested) break;
+                    mainList.EnsureVisible(item.Index);
+                    UpdateListViewItem(item, Color.Blue, "Processing");
                     try
                     {
-                        if (filename.EndsWith(".ymap"))
-                        {
-                            await ProcessYmapFileAsync(filename, moveVector, item);
-                        }
-                        else if (filename.EndsWith(".ybn"))
-                        {
-                            await ProcessYbnFileAsync(filename, moveVector, item);
-                        }
-                        else if (filename.EndsWith(".ydr") || filename.EndsWith(".ydd") || filename.EndsWith(".yft"))
-                        {
-                            await ProcessGenericFileAsync(filename, item);
-                        }
-
+                        await FileProcessor.ProcessAsync(item.SubItems[1].Text, transform, createBackup, token);
+                        UpdateListViewItem(item, Color.Green, "Done");
                         item.Selected = false;
+                    }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested)
+                    {
+                        UpdateListViewItem(item, Color.DarkOrange, "Cancelled");
+                        break;
                     }
                     catch (Exception ex)
                     {
-                        UpdateListViewItem(item, Color.Red, $"Error: {ex.Message}");
-                        return;
+                        errors++;
+                        UpdateListViewItem(item, Color.Red, "Error", ex.Message);
                     }
-                })).ToList();
+                    completed++;
+                }
+                if (token.IsCancellationRequested)
+                    foreach (var item in selected.Where(item => item.SubItems[3].Text == "Waiting"))
+                        UpdateListViewItem(item, Color.DarkOrange, "Skipped");
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested)
+            {
+                foreach (var item in selected.Where(item => item.SubItems[3].Text == "Waiting"))
+                    UpdateListViewItem(item, Color.DarkOrange, "Skipped");
+            }
+            catch (Exception ex)
+            {
+                foreach (var item in selected.Where(item => item.SubItems[3].Text == "Waiting"))
+                {
+                    errors++;
+                    UpdateListViewItem(item, Color.Red, "Error", "Could not calculate the shared map centre: " + ex.Message);
+                }
             }
             finally
             {
-                await Task.WhenAll(tasks);
-
-                watch.Dispose();
-                processAllButton.Enabled = true;
-                processSelectedButton.Enabled = true;
+                timer.Stop();
+                timeElapsedLabel.Text = $"{(token.IsCancellationRequested ? "Stopped" : "Finished")} | {completed} of {selected.Count} | {errors} errors | {watch.Elapsed:mm\\:ss}";
+                cts.Dispose();
+                cts = null;
+                processAllButton.Enabled = processSelectedButton.Enabled = fileToolStripMenuItem.Enabled = editToolStripMenuItem.Enabled = true;
+                SetTransformControlsEnabled(true);
                 stopButton.Enabled = false;
+                if (closeAfterProcessing) Close();
             }
         }
 
-        private async Task ProcessYmapFileAsync(string filename, Vector3 moveVector, ListViewItem item)
+        private void SetTransformControlsEnabled(bool enabled)
         {
-            try
-            {
-                byte[] oldData = await File.ReadAllBytesAsync(filename);
-                var ymap = new YmapFile();
-                ymap.Load(oldData);
-
-                if (ymap.AllEntities != null)
-                {
-                    foreach (YmapEntityDef yEnts in ymap.AllEntities)
-                        yEnts.SetPosition(yEnts.Position + moveVector);
-                }
-
-                if (ymap.AllEntities != null)
-                {
-                    foreach (YmapEntityDef yEnts in ymap.AllEntities)
-                        yEnts.SetPosition(yEnts.Position + moveVector);
-                }
-
-                if (ymap.CarGenerators != null)
-                {
-                    foreach (YmapCarGen yEnts in ymap.CarGenerators)
-                        yEnts.SetPosition(yEnts.Position + moveVector);
-                }
-
-                if (ymap.DistantLODLights != null)
-                {
-                    int lightCount = ymap._CMapData.DistantLODLightsSOA.position.Count1;
-                    for (int i = 0; i < lightCount; i++)
-                    {
-                        Vector3 vector3 = ymap.DistantLODLights.positions[i].ToVector3() + moveVector;
-                        MetaVECTOR3 metaVec = new() { x = vector3.X, y = vector3.Y, z = vector3.Z };
-                        ymap.DistantLODLights.positions[i] = metaVec;
-                    }
-                }
-
-                if (ymap.GrassInstanceBatches != null)
-                {
-                    foreach (YmapGrassInstanceBatch yEnts in ymap.GrassInstanceBatches)
-                    {
-                        yEnts.Position += moveVector;
-                        yEnts.AABBMin += moveVector;
-                        yEnts.AABBMax += moveVector;
-                    }
-                }
-
-                ymap._CMapData.streamingExtentsMax += moveVector;
-                ymap._CMapData.streamingExtentsMin += moveVector;
-                ymap._CMapData.entitiesExtentsMax += moveVector;
-                ymap._CMapData.entitiesExtentsMin += moveVector;
-
-                byte[] newData = ymap.Save();
-                await File.WriteAllBytesAsync(filename, newData);
-                UpdateListViewItem(item, Color.Green);
-            }
-            catch (Exception ex)
-            {
-                UpdateListViewItem(item, Color.Red, $"Error: {ex.Message}");
-            }
+            xMoveNumeric.Enabled = yMoveNumeric.Enabled = zMoveNumeric.Enabled = backupCheckBox.Enabled = enabled;
+            transformPanel.Enabled = enabled;
+            vecDiffGroupBox.Enabled = enabled;
         }
 
-        private async Task ProcessYbnFileAsync(string filename, Vector3 moveVector, ListViewItem item)
+        private static void UpdateListViewItem(ListViewItem item, Color color, string status, string details = "")
         {
-            try
-            {
-                byte[] oldData = await File.ReadAllBytesAsync(filename);
-                var ybn = new YbnFile();
-                ybn.Load(oldData);
-
-                if (ybn.Bounds == null)
-                {
-                    UpdateListViewItem(item, Color.Red, "Error: Bounds or BoundsData is null.");
-                    return;
-                }
-
-                ybn.Bounds.BoxCenter += moveVector;
-                ybn.Bounds.BoxMax += moveVector;
-                ybn.Bounds.BoxMin += moveVector;
-                ybn.Bounds.SphereCenter += moveVector;
-
-                BoundComposite? boundcomp = ybn.Bounds as BoundComposite;
-                var compchilds = boundcomp?.Children?.data_items;
-
-                if (boundcomp?.BVH != null)
-                {
-                    Vector3 boundcompBBC = MathFunctions.ConvertToVec3(boundcomp.BVH.BoundingBoxCenter);
-                    Vector3 boundcompBBMax = MathFunctions.ConvertToVec3(boundcomp.BVH.BoundingBoxMax);
-                    Vector3 boundcompBBMin = MathFunctions.ConvertToVec3(boundcomp.BVH.BoundingBoxMin);
-                    boundcomp.BVH.BoundingBoxCenter = new Vector4(boundcompBBC + moveVector, boundcomp.BVH.BoundingBoxCenter.W);
-                    boundcomp.BVH.BoundingBoxMax = new Vector4(boundcompBBMax + moveVector, boundcomp.BVH.BoundingBoxMax.W);
-                    boundcomp.BVH.BoundingBoxMin = new Vector4(boundcompBBMin + moveVector, boundcomp.BVH.BoundingBoxMin.W);
-                }
-
-                for (int i = 0; i < boundcomp?.ChildrenBoundingBoxes.Length; i++)
-                {
-                    Vector3 boundChildMin = MathFunctions.ConvertToVec3(boundcomp.ChildrenBoundingBoxes[i].Min);
-                    Vector3 boundChildMax = MathFunctions.ConvertToVec3(boundcomp.ChildrenBoundingBoxes[i].Max);
-                    boundcomp.ChildrenBoundingBoxes[i].Min = new Vector4(boundChildMin + moveVector, boundcomp.ChildrenBoundingBoxes[i].Min.W);
-                    boundcomp.ChildrenBoundingBoxes[i].Max = new Vector4(boundChildMax + moveVector, boundcomp.ChildrenBoundingBoxes[i].Max.W);
-                }
-
-                if (compchilds != null)
-                {
-                    for (int i = 0; i < compchilds.Length; i++)
-                    {
-                        compchilds[i].BoxCenter += moveVector;
-                        compchilds[i].BoxMax += moveVector;
-                        compchilds[i].BoxMin += moveVector;
-                        compchilds[i].SphereCenter += moveVector;
-                        if (compchilds[i] is BoundBVH bgeom)
-                        {
-                            if (bgeom.BVH != null)
-                            {
-                                Vector3 bgeomBBC = MathFunctions.ConvertToVec3(bgeom.BVH.BoundingBoxCenter);
-                                Vector3 bgeomBBMax = MathFunctions.ConvertToVec3(bgeom.BVH.BoundingBoxMax);
-                                Vector3 bgeomBBMin = MathFunctions.ConvertToVec3(bgeom.BVH.BoundingBoxMin);
-                                bgeom.BVH.BoundingBoxCenter = new Vector4(bgeomBBC + moveVector, bgeom.BVH.BoundingBoxCenter.W);
-                                bgeom.BVH.BoundingBoxMax = new Vector4(bgeomBBMax + moveVector, bgeom.BVH.BoundingBoxMax.W);
-                                bgeom.BVH.BoundingBoxMin = new Vector4(bgeomBBMin + moveVector, bgeom.BVH.BoundingBoxMin.W);
-                            }
-                            bgeom.CenterGeom += moveVector;
-                        }
-                    }
-                }
-
-                byte[] newData = ybn.Save();
-                await File.WriteAllBytesAsync(filename, newData);
-                UpdateListViewItem(item, Color.Green);
-            }
-            catch (Exception ex)
-            {
-                UpdateListViewItem(item, Color.Red, $"Error: {ex.Message}");
-            }
+            item.ForeColor = color;
+            item.SubItems[3].Text = status;
+            item.ToolTipText = details;
         }
 
-        private async Task ProcessGenericFileAsync(string filename, ListViewItem item)
+        private void stopButton_Click(object sender, EventArgs e) => cts?.Cancel();
+        private async void ProcessAllButton_Click(object sender, EventArgs e) => await ProcessFilesAsync(mainList.Items.Cast<ListViewItem>());
+        private async void ProcessSelectedButton_Click(object sender, EventArgs e) => await ProcessFilesAsync(mainList.SelectedItems.Cast<ListViewItem>());
+        private void ExitToolStripMenuItem_Click(object sender, EventArgs e) => Close();
+        private void AddFilesToolStripMenuItem_Click_1(object sender, EventArgs e)
         {
-            try
-            {
-                byte[] oldData = await File.ReadAllBytesAsync(filename);
-                byte[] newData;
-
-                if (filename.EndsWith(".ydr"))
-                {
-                    var ydr = new YdrFile();
-                    RpfFile.LoadResourceFile(ydr, oldData, 165);
-                    newData = ydr.Save();
-
-                }
-                else if (filename.EndsWith(".ydd"))
-                {
-                    var ydd = new YddFile();
-                    RpfFile.LoadResourceFile(ydd, oldData, 165);
-                    newData = ydd.Save();
-                }
-                else
-                {
-                    var yft = new YftFile();
-                    RpfFile.LoadResourceFile(yft, oldData, 162);
-                    newData = yft.Save();
-                }
-
-                await File.WriteAllBytesAsync(filename, newData);
-
-                UpdateListViewItem(item, Color.Green);
-            }
-            catch (Exception ex)
-            {
-                UpdateListViewItem(item, Color.Red, $"Error: {ex.Message}");
-            }
+            if (openFileDialog1.ShowDialog(this) == DialogResult.OK) AddFiles(openFileDialog1.FileNames);
         }
-
-        private void UpdateListViewItem(ListViewItem item, Color color, string toolTipText = "")
-        {
-            mainList.BeginUpdate();
-            try
-            {
-                item.ForeColor = color;
-                item.ToolTipText = toolTipText;
-            }
-            finally
-            {
-                mainList.EndUpdate();
-            }
-        }
-
-        private void stopButton_Click(object sender, EventArgs e)
-        {
-            interrupt = true;
-            cts?.Cancel();
-        }
-
-        private void ProcessAllButton_Click(object sender, EventArgs e) => ProcessFiles(mainList.Items.OfType<ListViewItem>());
-        private void ProcessSelectedButton_Click(object sender, EventArgs e) => ProcessFiles(mainList.SelectedItems.OfType<ListViewItem>());
-        private void AddFilesToolStripMenuItem_Click(object sender, EventArgs e) => mainFileDialog.ShowDialog();
+        private void AddFilesToolStripMenuItem_Click(object sender, EventArgs e) => AddFilesToolStripMenuItem_Click_1(sender, e);
         private void OpenFileDialog1_FileOk(object sender, EventArgs e) => AddFiles(mainFileDialog.FileNames);
         private void InvertButton_Click(object sender, EventArgs e) => (vector2.Text, vector1.Text) = (vector1.Text, vector2.Text);
         private void ClearAllYMAPsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList, "ymapGroup");
@@ -578,7 +468,7 @@ namespace Ymap_Ybn_Mover
         private void ClearAllYDRsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList, "ydrGroup");
         private void ClearAllYDDsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList, "yddGroup");
         private void ClearAllYFTsToolStripMenuItem_Click(object sender, EventArgs e) => OtherFunctions.RemoveFilesOfType(mainList, "yftGroup");
-        private void CheckForUpdateToolStripMenuItem_Click(object sender, EventArgs e) => CheckForUpdate(true);
+        private async void CheckForUpdateToolStripMenuItem_Click(object sender, EventArgs e) => await CheckForUpdateAsync(true);
         private void AboutToolStripMenuItem_Click(object sender, EventArgs e) => ToggleControlVisibility(aboutControls, true);
         private void CloseAboutButton_Click(object sender, EventArgs e) => ToggleControlVisibility(aboutControls, false);
         private void HowToUseToolStripMenuItem_Click(object sender, EventArgs e) => ToggleControlVisibility(howToControls, true);
